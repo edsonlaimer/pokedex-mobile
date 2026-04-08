@@ -11,18 +11,17 @@ export function useDebounce(value, delay = 400) {
 }
 
 // ─── usePaginatedList ─────────────────────────────────────────────────────────
-// Handles paginated fetch with infinite scroll.
-// fetchFn must match signature: (limit, offset) => Promise<{ items, hasMore }>
+// fetchFn signature: (limit, offset) => Promise<{ items, hasMore }>
 export function usePaginatedList(fetchFn, pageSize = 20) {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [items,       setItems]       = useState([]);
+  const [loading,     setLoading]     = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+  const [hasMore,     setHasMore]     = useState(true);
   const offsetRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
-    async function init() {
+    (async () => {
       try {
         const result = await fetchFn(pageSize, 0);
         if (cancelled) return;
@@ -34,8 +33,7 @@ export function usePaginatedList(fetchFn, pageSize = 20) {
       } finally {
         if (!cancelled) setLoading(false);
       }
-    }
-    init();
+    })();
     return () => { cancelled = true; };
   }, []);
 
@@ -58,7 +56,7 @@ export function usePaginatedList(fetchFn, pageSize = 20) {
 }
 
 // ─── useLocalSearch ───────────────────────────────────────────────────────────
-// Filters a list locally by query string against a set of keys.
+// Filters a list locally. Uses debounce internally — no extra hook needed.
 export function useLocalSearch(items, query, keys = ['name']) {
   const debounced = useDebounce(query.trim().toLowerCase());
   if (!debounced) return items;

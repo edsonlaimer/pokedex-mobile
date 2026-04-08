@@ -8,8 +8,8 @@ import {
   fetchPokemons, fetchAllPokemonIndex, fetchPokemonByName,
   fetchAllTypes, fetchType,
 } from '../services/pokeapi';
-import { SearchBar } from '../components/components';
-import { getTypeColor, TYPE_COLORS, formatName, padId } from '../components/constants';
+import { SearchBar, TypeBadge, BottomSheet, EmptyState } from '../components/components';
+import { COLORS, RADIUS, SHADOW, TYPE_COLORS, TYPE_ICONS, getTypeColor, getTypeIcon, formatName, padId, hex2rgba } from '../components/constants';
 import { usePaginatedList, useDebounce } from '../hooks/hooks';
 
 const SEARCH_LIMIT = 30;
@@ -17,72 +17,112 @@ const SEARCH_LIMIT = 30;
 // ─── Type Filter Modal ────────────────────────────────────────────────────────
 function TypeFilterModal({ visible, types, activeType, onSelect, onClose }) {
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={modal.overlay}>
-        <View style={modal.sheet}>
-          <View style={modal.sheetHeader}>
-            <Text style={modal.sheetTitle}>Filtrar por Tipo</Text>
-            <TouchableOpacity onPress={onClose} style={modal.closeBtn}>
-              <Text style={modal.closeText}>✕</Text>
+    <BottomSheet visible={visible} onClose={onClose} title="Filtrar por Tipo">
+      {activeType && (
+        <TouchableOpacity style={tf.clearBtn} onPress={() => { onSelect(null); onClose(); }}>
+          <Text style={tf.clearText}>✕  Remover filtro: {activeType}</Text>
+        </TouchableOpacity>
+      )}
+      <View style={tf.grid}>
+        {types.map((t) => {
+          const active = activeType === t.name;
+          const color  = getTypeColor(t.name);
+          const icon   = getTypeIcon(t.name);
+          return (
+            <TouchableOpacity
+              key={t.name}
+              onPress={() => { onSelect(t.name); onClose(); }}
+              activeOpacity={0.75}
+              style={[tf.chip, { backgroundColor: active ? color : hex2rgba(color, 0.1), borderColor: active ? color : hex2rgba(color, 0.25) }]}
+            >
+              <Text style={tf.chipIcon}>{icon}</Text>
+              <Text style={[tf.chipText, { color: active ? '#FFF' : color }]}>{t.name}</Text>
             </TouchableOpacity>
-          </View>
-
-          {activeType && (
-            <TouchableOpacity style={modal.clearBtn} onPress={() => onSelect(null)}>
-              <Text style={modal.clearBtnText}>✕  Limpar filtro</Text>
-            </TouchableOpacity>
-          )}
-
-          <ScrollView contentContainerStyle={modal.grid} showsVerticalScrollIndicator={false}>
-            {types.map((t) => {
-              const active = activeType === t.name;
-              const color  = TYPE_COLORS[t.name] ?? '#9CA3AF';
-              return (
-                <TouchableOpacity
-                  key={t.name}
-                  onPress={() => { onSelect(t.name); onClose(); }}
-                  style={[modal.chip, { backgroundColor: active ? color : color + '22', borderColor: color }]}
-                >
-                  <Text style={[modal.chipText, { color: active ? '#FFF' : color }]}>{t.name}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
+          );
+        })}
       </View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
-const modal = StyleSheet.create({
-  overlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: '#FFF', borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    padding: 24, maxHeight: '70%',
+const tf = StyleSheet.create({
+  clearBtn:  { alignSelf: 'flex-start', marginBottom: 16, paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.sm, backgroundColor: '#FEE2E2' },
+  clearText: { fontSize: 13, fontWeight: '700', color: '#EF4444' },
+  grid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingBottom: 20 },
+  chip:      { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: RADIUS.md, borderWidth: 1.5, minWidth: '44%', flex: 1 },
+  chipIcon:  { fontSize: 16 },
+  chipText:  { fontSize: 13, fontWeight: '700', textTransform: 'capitalize' },
+});
+
+// ─── Pokémon Card ─────────────────────────────────────────────────────────────
+const PokemonCard = React.memo(({ item, onPress }) => {
+  const mainType = item.types[0]?.type.name;
+  const color    = getTypeColor(mainType);
+  const icon     = getTypeIcon(mainType);
+
+  return (
+    <TouchableOpacity activeOpacity={0.82} style={pc.card} onPress={onPress}>
+      {/* Color accent strip */}
+      <View style={[pc.strip, { backgroundColor: hex2rgba(color, 0.12) }]} />
+
+      <View style={pc.left}>
+        {/* Sprite */}
+        <View style={[pc.imgWrap, { backgroundColor: hex2rgba(color, 0.1) }]}>
+          <Image source={{ uri: item.sprites.front_default }} style={pc.img} resizeMode="contain" />
+        </View>
+
+        {/* Info */}
+        <View style={pc.info}>
+          <Text style={pc.num}>{padId(item.id)}</Text>
+          <Text style={pc.name}>{formatName(item.name)}</Text>
+          <View style={pc.types}>
+            {item.types.map((t) => (
+              <TypeBadge key={t.type.name} type={t.type.name} size="sm" />
+            ))}
+          </View>
+        </View>
+      </View>
+
+      {/* Right icon */}
+      <View style={pc.right}>
+        <Text style={pc.typeIcon}>{icon}</Text>
+        <Text style={pc.arrow}>›</Text>
+      </View>
+    </TouchableOpacity>
+  );
+});
+
+const pc = StyleSheet.create({
+  card: {
+    backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 12, paddingHorizontal: 14, overflow: 'hidden',
+    ...SHADOW.card,
   },
-  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  sheetTitle:  { fontSize: 18, fontWeight: '800', color: '#111827' },
-  closeBtn:    { padding: 4 },
-  closeText:   { fontSize: 18, color: '#9CA3AF' },
-  clearBtn:    { alignSelf: 'flex-start', marginBottom: 14, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, backgroundColor: '#FEE2E2' },
-  clearBtnText:{ fontSize: 13, fontWeight: '700', color: '#EF4444' },
-  grid:        { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingBottom: 8 },
-  chip:        { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, borderWidth: 1.5 },
-  chipText:    { fontSize: 13, fontWeight: '700', textTransform: 'capitalize' },
+  strip: { position: 'absolute', right: 0, top: 0, bottom: 0, width: '35%', borderTopRightRadius: RADIUS.lg, borderBottomRightRadius: RADIUS.lg },
+  left:  { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  imgWrap: { width: 64, height: 64, borderRadius: RADIUS.md, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  img:   { width: 54, height: 54 },
+  info:  { flex: 1 },
+  num:   { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5, marginBottom: 2 },
+  name:  { fontSize: 17, fontWeight: '800', color: COLORS.text, marginBottom: 6 },
+  types: { flexDirection: 'row', gap: 5 },
+  right: { alignItems: 'center', gap: 4 },
+  typeIcon:{ fontSize: 22, opacity: 0.5 },
+  arrow: { fontSize: 20, color: COLORS.textMuted },
 });
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function HomeScreen({ navigation }) {
   const { items: pokemons, loading, loadingMore, loadMore } = usePaginatedList(fetchPokemons);
 
-  const [query, setQuery]               = useState('');
+  const [query,         setQuery]         = useState('');
   const [searchResults, setSearchResults] = useState(null);
-  const [searching, setSearching]       = useState(false);
-
-  const [types, setTypes]               = useState([]);
-  const [activeType, setActiveType]     = useState(null);
-  const [typeResults, setTypeResults]   = useState(null);
-  const [loadingType, setLoadingType]   = useState(false);
+  const [searching,     setSearching]     = useState(false);
+  const [types,         setTypes]         = useState([]);
+  const [activeType,    setActiveType]    = useState(null);
+  const [typeResults,   setTypeResults]   = useState(null);
+  const [loadingType,   setLoadingType]   = useState(false);
   const [filterVisible, setFilterVisible] = useState(false);
 
   const allIndexRef    = useRef(null);
@@ -102,13 +142,12 @@ export default function HomeScreen({ navigation }) {
     const index = allIndexRef.current;
     if (!index) return;
     const matched = index
-      .filter((p) => p.name.includes(q) || String(p.id) === q || padId(p.id).includes(q))
+      .filter((p) => p.name.includes(q) || String(p.id) === q || String(p.id).padStart(3, '0').includes(q))
       .slice(0, SEARCH_LIMIT);
     if (!matched.length) { setSearchResults([]); return; }
     setSearching(true);
     try {
-      const detailed = await Promise.all(matched.map((p) => fetchPokemonByName(p.name)));
-      setSearchResults(detailed);
+      setSearchResults(await Promise.all(matched.map((p) => fetchPokemonByName(p.name))));
     } catch (e) { console.error(e); }
     finally { setSearching(false); }
   }
@@ -120,7 +159,6 @@ export default function HomeScreen({ navigation }) {
   }, []);
 
   async function handleTypeSelect(typeName) {
-    // null = clear filter
     if (!typeName || activeType === typeName) {
       setActiveType(null);
       setTypeResults(null);
@@ -131,11 +169,10 @@ export default function HomeScreen({ navigation }) {
     setSearchResults(null);
     setLoadingType(true);
     try {
-      const typeData = await fetchType(typeName);
-      const detailed = await Promise.all(
-        typeData.pokemon.slice(0, 40).map(({ pokemon }) => fetchPokemonByName(pokemon.name))
+      const td = await fetchType(typeName);
+      setTypeResults(
+        await Promise.all(td.pokemon.slice(0, 40).map(({ pokemon }) => fetchPokemonByName(pokemon.name)))
       );
-      setTypeResults(detailed);
     } catch (e) { console.error(e); }
     finally { setLoadingType(false); }
   }
@@ -144,124 +181,85 @@ export default function HomeScreen({ navigation }) {
   const isTypeMode    = !!activeType;
   const displayData   = isSearchMode ? (searchResults ?? []) : isTypeMode ? (typeResults ?? []) : pokemons;
   const isListLoading = isSearchMode ? searching : isTypeMode ? loadingType : loading;
-  const hasActiveFilter = isTypeMode;
 
-  const renderPokemon = useCallback(({ item }) => {
-    const mainType = item.types[0]?.type.name;
-    const color    = getTypeColor(mainType);
-    return (
-      <TouchableOpacity
-        activeOpacity={0.85}
-        style={styles.card}
-        onPress={() => navigation.navigate('PokemonDetail', { pokemon: item })}
-      >
-        <View style={[styles.cardAccent, { backgroundColor: color + '22' }]} />
-        <View style={styles.leftContent}>
-          <View style={[styles.imageWrapper, { backgroundColor: color + '18' }]}>
-            <Image source={{ uri: item.sprites.front_default }} style={styles.image} />
-          </View>
-          <View>
-            <Text style={styles.name}>{formatName(item.name)}</Text>
-            <Text style={styles.number}>#{padId(item.id)}</Text>
-            <View style={styles.typePills}>
-              {item.types.map((t) => (
-                <View key={t.type.name} style={[styles.typePill, { backgroundColor: getTypeColor(t.type.name) }]}>
-                  <Text style={styles.typePillText}>{t.type.name}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        </View>
-        <Text style={styles.arrow}>›</Text>
-      </TouchableOpacity>
-    );
-  }, [navigation]);
+  const renderItem = useCallback(({ item }) => (
+    <PokemonCard item={item} onPress={() => navigation.navigate('PokemonDetail', { pokemon: item })} />
+  ), [navigation]);
+
+  const activeTypeColor = activeType ? getTypeColor(activeType) : null;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+    <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
 
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.titleRow}>
+      <View style={s.container}>
+        {/* ── Header ── */}
+        <View style={s.header}>
+          <View style={s.titleRow}>
             <View>
-              <Text style={styles.title}>Pokédex</Text>
-              <Text style={styles.subtitle}>Explore todos os Pokémons</Text>
+              <Text style={s.title}>Pokédex</Text>
+              <Text style={s.subtitle}>
+                {isTypeMode ? `Tipo: ${activeType}` : isSearchMode ? `Resultados para "${query}"` : 'Todos os Pokémons'}
+              </Text>
             </View>
-            <View style={styles.headerActions}>
+            <View style={s.actions}>
               {[
-                { icon: '⚖️', screen: 'Comparator' },
-                { icon: '🎒', screen: 'Items' },
-                { icon: '🍓', screen: 'Berries' },
+                { icon: '⚖️', screen: 'Comparator', label: 'Comparar' },
+                { icon: '🎒', screen: 'Items',      label: 'Itens' },
+                { icon: '🍓', screen: 'Berries',    label: 'Berries' },
               ].map(({ icon, screen }) => (
-                <TouchableOpacity
-                  key={screen}
-                  style={styles.actionBtn}
-                  onPress={() => navigation.navigate(screen)}
-                >
-                  <Text style={styles.actionBtnText}>{icon}</Text>
+                <TouchableOpacity key={screen} style={s.actionBtn} onPress={() => navigation.navigate(screen)} activeOpacity={0.75}>
+                  <Text style={s.actionIcon}>{icon}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           </View>
 
-          {/* Search + filter button row */}
-          <View style={styles.searchRow}>
+          {/* Search row */}
+          <View style={s.searchRow}>
             <View style={{ flex: 1 }}>
-              <SearchBar
-                value={query}
-                onChangeText={handleQueryChange}
-                placeholder="Buscar por nome ou número"
-              />
+              <SearchBar value={query} onChangeText={handleQueryChange} placeholder="Nome ou número..." />
             </View>
             <TouchableOpacity
-              style={[styles.filterBtn, hasActiveFilter && styles.filterBtnActive]}
+              style={[s.filterBtn, isTypeMode && { backgroundColor: hex2rgba(activeTypeColor, 0.15), borderColor: activeTypeColor, borderWidth: 1.5 }]}
               onPress={() => setFilterVisible(true)}
+              activeOpacity={0.75}
             >
-              <Text style={styles.filterBtnText}>🎯</Text>
-              {hasActiveFilter && <View style={styles.filterDot} />}
+              <Text style={s.filterIcon}>{isTypeMode ? getTypeIcon(activeType) : '🎯'}</Text>
+              {isTypeMode && <View style={[s.filterDot, { backgroundColor: activeTypeColor }]} />}
             </TouchableOpacity>
           </View>
 
-          {/* Active type badge */}
+          {/* Active type chip */}
           {isTypeMode && (
-            <View style={styles.activeBadgeRow}>
-              <View style={[styles.activeBadge, { backgroundColor: (TYPE_COLORS[activeType] ?? '#9CA3AF') + '22', borderColor: TYPE_COLORS[activeType] ?? '#9CA3AF' }]}>
-                <Text style={[styles.activeBadgeText, { color: TYPE_COLORS[activeType] ?? '#9CA3AF' }]}>
-                  {activeType}
-                </Text>
-                <TouchableOpacity onPress={() => handleTypeSelect(null)} style={styles.activeBadgeClear}>
-                  <Text style={[styles.activeBadgeClearText, { color: TYPE_COLORS[activeType] ?? '#9CA3AF' }]}>✕</Text>
+            <View style={s.activeRow}>
+              <View style={[s.activeChip, { backgroundColor: hex2rgba(activeTypeColor, 0.1), borderColor: hex2rgba(activeTypeColor, 0.3) }]}>
+                <Text style={[s.activeChipText, { color: activeTypeColor }]}>{getTypeIcon(activeType)}  {activeType}</Text>
+                <TouchableOpacity onPress={() => handleTypeSelect(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text style={[s.activeChipX, { color: activeTypeColor }]}>✕</Text>
                 </TouchableOpacity>
               </View>
             </View>
           )}
         </View>
 
-        {/* List */}
+        {/* ── List ── */}
         {isListLoading && displayData.length === 0 ? (
-          <View style={styles.center}>
-            <ActivityIndicator size="large" />
-            <Text style={styles.loadingText}>Carregando...</Text>
+          <View style={s.center}>
+            <ActivityIndicator size="large" color="#3B82F6" />
+            <Text style={s.loadingText}>Carregando...</Text>
           </View>
         ) : (
           <FlatList
             data={displayData}
             keyExtractor={(item) => item.id.toString()}
-            renderItem={renderPokemon}
-            contentContainerStyle={styles.listContent}
+            renderItem={renderItem}
+            contentContainerStyle={s.list}
             showsVerticalScrollIndicator={false}
             onEndReached={!isSearchMode && !isTypeMode ? loadMore : undefined}
-            onEndReachedThreshold={0.3}
-            ListFooterComponent={loadingMore ? <ActivityIndicator style={{ padding: 16 }} /> : null}
-            ListEmptyComponent={
-              !isListLoading ? (
-                <View style={styles.center}>
-                  <Text style={styles.emptyText}>Nenhum Pokémon encontrado.</Text>
-                </View>
-              ) : null
-            }
+            onEndReachedThreshold={0.4}
+            ListFooterComponent={loadingMore ? <ActivityIndicator style={{ padding: 20 }} color="#3B82F6" /> : null}
+            ListEmptyComponent={!isListLoading ? <EmptyState icon="🔍" text="Nenhum Pokémon encontrado." /> : null}
           />
         )}
       </View>
@@ -277,57 +275,33 @@ export default function HomeScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea:          { flex: 1, backgroundColor: '#FFFFFF' },
-  container:         { flex: 1, backgroundColor: '#F8FAFC' },
+const s = StyleSheet.create({
+  safe:       { flex: 1, backgroundColor: COLORS.surface },
+  container:  { flex: 1, backgroundColor: COLORS.bg },
   header: {
-    paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12,
-    backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E5E7EB', gap: 12,
+    backgroundColor: COLORS.surface, paddingHorizontal: 20,
+    paddingTop: 10, paddingBottom: 14, gap: 12,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
-  titleRow:          { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title:             { fontSize: 30, fontWeight: '800', color: '#111827' },
-  subtitle:          { fontSize: 13, color: '#6B7280', marginTop: 2 },
-  headerActions:     { flexDirection: 'row', gap: 8 },
-  actionBtn:         { width: 38, height: 38, borderRadius: 12, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
-  actionBtnText:     { fontSize: 18 },
-  searchRow:         { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  titleRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  title:      { fontSize: 32, fontWeight: '900', color: COLORS.text, letterSpacing: -0.5 },
+  subtitle:   { fontSize: 13, color: COLORS.textSub, marginTop: 2, fontWeight: '500', textTransform: 'capitalize' },
+  actions:    { flexDirection: 'row', gap: 8 },
+  actionBtn:  { width: 40, height: 40, borderRadius: RADIUS.sm, backgroundColor: COLORS.bg, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
+  actionIcon: { fontSize: 18 },
+  searchRow:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
   filterBtn: {
-    width: 48, height: 48, borderRadius: 14,
-    backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center',
+    width: 50, height: 50, borderRadius: RADIUS.md,
+    backgroundColor: COLORS.bg, justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: COLORS.border,
   },
-  filterBtnActive:   { backgroundColor: '#EFF6FF', borderWidth: 1.5, borderColor: '#3B82F6' },
-  filterBtnText:     { fontSize: 20 },
-  filterDot: {
-    position: 'absolute', top: 8, right: 8,
-    width: 8, height: 8, borderRadius: 4, backgroundColor: '#3B82F6',
-  },
-  activeBadgeRow:    { flexDirection: 'row' },
-  activeBadge: {
-    flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start',
-    paddingLeft: 12, paddingRight: 6, paddingVertical: 5,
-    borderRadius: 999, borderWidth: 1.5, gap: 6,
-  },
-  activeBadgeText:   { fontSize: 13, fontWeight: '700', textTransform: 'capitalize' },
-  activeBadgeClear:  { padding: 2 },
-  activeBadgeClearText: { fontSize: 12, fontWeight: '700' },
-  listContent:       { padding: 16, paddingBottom: 30 },
-  card: {
-    backgroundColor: '#FFFFFF', borderRadius: 18, padding: 14, marginBottom: 12,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 }, elevation: 2, overflow: 'hidden',
-  },
-  cardAccent:        { position: 'absolute', right: 0, top: 0, bottom: 0, width: 80, borderTopRightRadius: 18, borderBottomRightRadius: 18 },
-  leftContent:       { flexDirection: 'row', alignItems: 'center' },
-  imageWrapper:      { width: 58, height: 58, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
-  image:             { width: 46, height: 46 },
-  name:              { fontSize: 16, fontWeight: '700', color: '#111827' },
-  number:            { marginTop: 2, fontSize: 12, color: '#9CA3AF' },
-  typePills:         { flexDirection: 'row', gap: 5, marginTop: 6 },
-  typePill:          { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
-  typePillText:      { fontSize: 10, fontWeight: '700', color: '#FFF', textTransform: 'capitalize' },
-  arrow:             { fontSize: 24, color: '#D1D5DB', marginLeft: 10 },
-  center:            { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 60 },
-  loadingText:       { marginTop: 10, color: '#6B7280' },
-  emptyText:         { color: '#6B7280', fontSize: 15 },
+  filterIcon: { fontSize: 20 },
+  filterDot:  { position: 'absolute', top: 9, right: 9, width: 8, height: 8, borderRadius: 4 },
+  activeRow:  { flexDirection: 'row' },
+  activeChip: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 12, paddingRight: 8, paddingVertical: 6, borderRadius: RADIUS.sm, borderWidth: 1.5 },
+  activeChipText: { fontSize: 13, fontWeight: '700', textTransform: 'capitalize' },
+  activeChipX:    { fontSize: 13, fontWeight: '800' },
+  list:       { padding: 16, paddingBottom: 32 },
+  center:     { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText:{ marginTop: 12, color: COLORS.textSub, fontWeight: '500' },
 });

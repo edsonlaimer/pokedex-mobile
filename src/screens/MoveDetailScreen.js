@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Image, ScrollView, StatusBar,
+  View, Text, StyleSheet, ActivityIndicator,
+  Image, ScrollView, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { fetchMoveByName } from '../services/pokeapi';
-import { TypeBadge, Card, CardTitle, InfoGrid } from '../components/components';
-import { getTypeColor, formatName, padId } from '../components/constants';
+import { TypeBadge, Card, CardTitle, InfoGrid, BackButton, SectionDivider } from '../components/components';
+import { COLORS, RADIUS, SHADOW, getTypeColor, formatName, padId, hex2rgba } from '../components/constants';
+
+const DAMAGE_ICON = { physical: '💥', special: '✨', status: '🔄' };
 
 export default function MoveDetailScreen({ route, navigation }) {
   const { moveName, pokemon } = route.params;
@@ -22,111 +24,129 @@ export default function MoveDetailScreen({ route, navigation }) {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.loadingSafe} edges={['top', 'left', 'right']}>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" />
-          <Text style={styles.loadingText}>Carregando movimento...</Text>
-        </View>
+      <SafeAreaView style={s.loadSafe} edges={['top', 'left', 'right']}>
+        <View style={s.center}><ActivityIndicator size="large" /><Text style={s.loadText}>Carregando...</Text></View>
       </SafeAreaView>
     );
   }
 
   if (!move) {
     return (
-      <SafeAreaView style={styles.loadingSafe} edges={['top', 'left', 'right']}>
-        <View style={styles.center}>
-          <Text style={styles.loadingText}>Não foi possível carregar o movimento.</Text>
-        </View>
+      <SafeAreaView style={s.loadSafe} edges={['top', 'left', 'right']}>
+        <View style={s.center}><Text style={s.loadText}>Movimento não encontrado.</Text></View>
       </SafeAreaView>
     );
   }
 
-  const bgColor = getTypeColor(move.type.name);
+  const typeColor   = getTypeColor(move.type.name);
   const description =
     move.flavor_text_entries?.find((e) => e.language.name === 'en')?.flavor_text ||
     move.effect_entries?.find((e) => e.language.name === 'en')?.short_effect ||
     'No description available.';
+  const fullEffect = move.effect_entries?.find((e) => e.language.name === 'en')?.effect ?? '';
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="light-content" backgroundColor={bgColor} />
+    <SafeAreaView style={[s.safe, { backgroundColor: typeColor }]} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="light-content" backgroundColor={typeColor} />
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 30 }}>
-        {/* Hero */}
-        <View style={[styles.hero, { backgroundColor: bgColor }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}>
-            <Text style={styles.backText}>‹ Voltar</Text>
-          </TouchableOpacity>
-          <Text style={styles.heroTitle}>{formatName(move.name)}</Text>
+      {/* Hero */}
+      <View style={[s.hero, { backgroundColor: typeColor }]}>
+        <BackButton onPress={() => navigation.goBack()} light />
+        <Text style={s.heroName}>{formatName(move.name)}</Text>
+        <View style={s.heroRow}>
           <TypeBadge type={move.type.name} light />
+          <View style={s.damageChip}>
+            <Text style={s.damageText}>{DAMAGE_ICON[move.damage_class?.name] ?? '❓'} {move.damage_class?.name}</Text>
+          </View>
         </View>
+      </View>
 
-        <View style={styles.content}>
-          {/* Power / Accuracy float cards */}
-          <View style={styles.statsRow}>
-            <View style={[styles.statCard, { marginRight: 10 }]}>
-              <Text style={styles.statLabel}>Poder</Text>
-              <Text style={styles.statValue}>{move.power ?? '—'}</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Precisão</Text>
-              <Text style={styles.statValue}>{move.accuracy ? `${move.accuracy}%` : '—'}</Text>
-            </View>
+      <View style={s.body}>
+        <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+
+          {/* Stats float cards */}
+          <View style={s.statsRow}>
+            {[
+              { label: 'Poder',    value: move.power    ?? '—' },
+              { label: 'Precisão', value: move.accuracy ? `${move.accuracy}%` : '—' },
+              { label: 'PP',       value: move.pp       ?? '—' },
+            ].map(({ label, value }) => (
+              <View key={label} style={s.statCard}>
+                <Text style={s.statLabel}>{label}</Text>
+                <Text style={[s.statValue, { color: typeColor }]}>{value}</Text>
+              </View>
+            ))}
           </View>
 
+          {/* Description */}
           <Card>
             <CardTitle>Descrição</CardTitle>
-            <Text style={styles.description}>{description.replace(/\f/g, ' ')}</Text>
+            <Text style={s.desc}>{description.replace(/\f/g, ' ')}</Text>
+            {!!fullEffect && fullEffect !== description && (
+              <>
+                <SectionDivider />
+                <Text style={s.effect}>{fullEffect.replace(/\$effect_chance/g, move.effect_chance ?? '?').replace(/\f/g, ' ')}</Text>
+              </>
+            )}
           </Card>
 
+          {/* Extra info */}
+          <Card>
+            <CardTitle>Informações</CardTitle>
+            <InfoGrid items={[
+              { label: 'Geração', value: move.generation?.name?.replace('generation-', 'Gen ').toUpperCase() },
+              { label: 'Alvo',    value: move.target?.name?.replace(/-/g, ' ') },
+              { label: 'Prioridade', value: move.priority },
+              { label: 'Ailment', value: move.meta?.ailment?.name !== 'none' ? move.meta?.ailment?.name : undefined },
+            ]} />
+          </Card>
+
+          {/* Pokémon card */}
           <Card>
             <CardTitle>Pokémon</CardTitle>
-            <View style={styles.pokemonRow}>
-              <View style={styles.imageWrapper}>
-                <Image source={{ uri: pokemon.sprites.front_default }} style={styles.pokemonImage} />
+            <View style={s.pokeRow}>
+              <View style={[s.pokeImg, { backgroundColor: hex2rgba(typeColor, 0.1) }]}>
+                <Image source={{ uri: pokemon.sprites.front_default }} style={s.sprite} resizeMode="contain" />
               </View>
               <View>
-                <Text style={styles.pokemonName}>{formatName(pokemon.name)}</Text>
-                <Text style={styles.pokemonNumber}>#{padId(pokemon.id)}</Text>
+                <Text style={s.pokeName}>{formatName(pokemon.name)}</Text>
+                <Text style={s.pokeNum}>{padId(pokemon.id)}</Text>
+                <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                  {pokemon.types.map((t) => <TypeBadge key={t.type.name} type={t.type.name} size="sm" />)}
+                </View>
               </View>
             </View>
           </Card>
-
-          <Card>
-            <CardTitle>Informações extras</CardTitle>
-            <InfoGrid items={[
-              { label: 'PP',      value: move.pp ?? '—' },
-              { label: 'Classe',  value: move.damage_class?.name },
-              { label: 'Geração', value: move.generation?.name?.replace('generation-', 'Gen ').toUpperCase() },
-              { label: 'Alvo',    value: move.target?.name?.replace(/-/g, ' ') },
-            ]} />
-          </Card>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea:      { flex: 1, backgroundColor: '#F8FAFC' },
-  loadingSafe:   { flex: 1, backgroundColor: '#FFFFFF' },
-  hero:          { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 28, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
-  backText:      { color: '#FFF', fontSize: 15, fontWeight: '600', marginBottom: 18 },
-  heroTitle:     { fontSize: 28, fontWeight: '800', color: '#FFF', textTransform: 'capitalize', marginBottom: 10 },
-  content:       { padding: 16 },
-  statsRow:      { flexDirection: 'row', marginTop: -18, marginBottom: 12 },
+const s = StyleSheet.create({
+  safe:      { flex: 1 },
+  loadSafe:  { flex: 1, backgroundColor: COLORS.surface },
+  hero:      { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 24 },
+  heroName:  { fontSize: 28, fontWeight: '900', color: '#FFF', textTransform: 'capitalize', marginBottom: 10, letterSpacing: -0.4 },
+  heroRow:   { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  damageChip:{ backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: RADIUS.sm },
+  damageText:{ color: '#FFF', fontSize: 12, fontWeight: '700', textTransform: 'capitalize' },
+  body:      { flex: 1, backgroundColor: COLORS.bg, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, overflow: 'hidden' },
+  scroll:    { padding: 16, paddingBottom: 40 },
+  statsRow:  { flexDirection: 'row', gap: 10, marginBottom: 12 },
   statCard: {
-    flex: 1, backgroundColor: '#FFF', borderRadius: 18, padding: 16,
-    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2,
+    flex: 1, backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, padding: 14, alignItems: 'center',
+    ...SHADOW.card,
   },
-  statLabel:     { fontSize: 12, color: '#6B7280', marginBottom: 8, fontWeight: '600' },
-  statValue:     { fontSize: 28, fontWeight: '800', color: '#111827' },
-  description:   { fontSize: 14, lineHeight: 22, color: '#374151' },
-  pokemonRow:    { flexDirection: 'row', alignItems: 'center' },
-  imageWrapper:  { width: 58, height: 58, borderRadius: 16, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginRight: 14 },
-  pokemonImage:  { width: 44, height: 44 },
-  pokemonName:   { fontSize: 16, fontWeight: '700', color: '#111827' },
-  pokemonNumber: { marginTop: 4, fontSize: 13, color: '#9CA3AF' },
-  center:        { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText:   { marginTop: 10, color: '#6B7280' },
+  statLabel: { fontSize: 10, fontWeight: '800', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
+  statValue: { fontSize: 24, fontWeight: '900' },
+  desc:      { fontSize: 14, lineHeight: 22, color: COLORS.textSub },
+  effect:    { fontSize: 13, lineHeight: 20, color: COLORS.textMuted },
+  pokeRow:   { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  pokeImg:   { width: 70, height: 70, borderRadius: RADIUS.md, justifyContent: 'center', alignItems: 'center' },
+  sprite:    { width: 56, height: 56 },
+  pokeName:  { fontSize: 17, fontWeight: '800', color: COLORS.text, textTransform: 'capitalize' },
+  pokeNum:   { fontSize: 12, color: COLORS.textMuted, fontWeight: '600', marginTop: 2 },
+  center:    { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadText:  { marginTop: 10, color: COLORS.textSub },
 });

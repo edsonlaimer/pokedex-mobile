@@ -5,13 +5,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { fetchBerries } from '../services/pokeapi';
-import { SearchBar, BottomSheet, Card, CardTitle } from '../components/components';
-import { FLAVOR_COLORS, formatName } from '../components/constants';
+import { SearchBar, BottomSheet, Card, CardTitle, SectionDivider, EmptyState, BackButton } from '../components/components';
+import { COLORS, RADIUS, SHADOW, FLAVOR_COLORS, formatName } from '../components/constants';
 import { usePaginatedList, useLocalSearch } from '../hooks/hooks';
 
 const FIRMNESS_COLORS = {
-  'very-soft': '#FCA5A5', soft: '#FDBA74', hard: '#86EFAC',
-  'very-hard': '#6EE7B7', 'super-hard': '#5EEAD4',
+  'very-soft':'#FCA5A5', soft:'#FDBA74', hard:'#86EFAC',
+  'very-hard':'#6EE7B7', 'super-hard':'#5EEAD4',
 };
 
 function getTopFlavor(berry) {
@@ -20,73 +20,85 @@ function getTopFlavor(berry) {
 }
 
 function BerryCard({ berry, onPress }) {
-  const topFlavor    = getTopFlavor(berry);
-  const flavorColor  = topFlavor ? (FLAVOR_COLORS[topFlavor.flavor.name] ?? '#9CA3AF') : '#9CA3AF';
-  const firmnessColor = FIRMNESS_COLORS[berry.firmness?.name] ?? '#E5E7EB';
-  // Sprite comes from the linked item fetched in pokeapi.js
-  const spriteUri = berry.itemData?.sprites?.default;
+  const spriteUri     = berry.itemData?.sprites?.default;
+  const topFlavor     = getTopFlavor(berry);
+  const flavorColor   = topFlavor ? (FLAVOR_COLORS[topFlavor.flavor.name] ?? COLORS.textMuted) : COLORS.textMuted;
+  const firmnessColor = FIRMNESS_COLORS[berry.firmness?.name] ?? COLORS.border;
 
   return (
-    <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={onPress}>
-      <View style={[styles.iconWrapper, { backgroundColor: flavorColor + '22' }]}>
+    <TouchableOpacity style={bc.card} activeOpacity={0.82} onPress={onPress}>
+      <View style={[bc.iconBox, { backgroundColor: flavorColor + '18' }]}>
         {spriteUri
-          ? <Image source={{ uri: spriteUri }} style={styles.berryImage} />
-          : <Text style={styles.berryEmoji}>🍒</Text>
+          ? <Image source={{ uri: spriteUri }} style={bc.sprite} resizeMode="contain" />
+          : <Text style={bc.emoji}>🍒</Text>
         }
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={styles.berryName}>{formatName(berry.name)} Berry</Text>
-        <View style={styles.tagsRow}>
+        <Text style={bc.name}>{formatName(berry.name)} Berry</Text>
+        <View style={bc.tags}>
           {topFlavor && (
-            <View style={[styles.tag, { backgroundColor: flavorColor + '22' }]}>
-              <Text style={[styles.tagText, { color: flavorColor }]}>{topFlavor.flavor.name}</Text>
+            <View style={[bc.tag, { backgroundColor: flavorColor + '18' }]}>
+              <Text style={[bc.tagText, { color: flavorColor }]}>{topFlavor.flavor.name}</Text>
             </View>
           )}
-          <View style={[styles.tag, { backgroundColor: firmnessColor + '55' }]}>
-            <Text style={[styles.tagText, { color: '#374151' }]}>
-              {berry.firmness?.name?.replace(/-/g, ' ')}
-            </Text>
+          <View style={[bc.tag, { backgroundColor: firmnessColor + '44' }]}>
+            <Text style={[bc.tagText, { color: '#374151' }]}>{berry.firmness?.name?.replace(/-/g, ' ')}</Text>
           </View>
         </View>
-        <View style={styles.statsRow}>
-          <Text style={styles.stat}>⏱ {berry.growth_time}h</Text>
-          <Text style={styles.stat}>🍒 x{berry.max_harvest}</Text>
-          <Text style={styles.stat}>⚡ {berry.natural_gift_power}</Text>
+        <View style={bc.stats}>
+          <Text style={bc.stat}>⏱ {berry.growth_time}h</Text>
+          <Text style={bc.stat}>🍒 ×{berry.max_harvest}</Text>
+          <Text style={bc.stat}>⚡ {berry.natural_gift_power}</Text>
         </View>
       </View>
-      <Text style={styles.arrow}>›</Text>
     </TouchableOpacity>
   );
 }
 
+const bc = StyleSheet.create({
+  card: {
+    backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, padding: 14, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 12, ...SHADOW.card,
+  },
+  iconBox: { width: 56, height: 56, borderRadius: RADIUS.md, justifyContent: 'center', alignItems: 'center' },
+  sprite:  { width: 44, height: 44 },
+  emoji:   { fontSize: 28 },
+  name:    { fontSize: 14, fontWeight: '800', color: COLORS.text, marginBottom: 6 },
+  tags:    { flexDirection: 'row', gap: 6, marginBottom: 6, flexWrap: 'wrap' },
+  tag:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.sm },
+  tagText: { fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
+  stats:   { flexDirection: 'row', gap: 10 },
+  stat:    { fontSize: 11, color: COLORS.textMuted, fontWeight: '500' },
+});
+
 function BerryDetail({ berry }) {
-  const spriteUri = berry.itemData?.sprites?.default;
+  const spriteUri     = berry.itemData?.sprites?.default;
   const activeFlavors = berry.flavors?.filter((f) => f.potency > 0) ?? [];
 
   return (
     <>
-      <View style={detail.topRow}>
+      <View style={bd.top}>
         {spriteUri
-          ? <Image source={{ uri: spriteUri }} style={detail.bigImage} />
-          : <Text style={{ fontSize: 64 }}>🍒</Text>
+          ? <Image source={{ uri: spriteUri }} style={bd.bigSprite} resizeMode="contain" />
+          : <Text style={{ fontSize: 80 }}>🍒</Text>
         }
-        <Text style={detail.name}>{formatName(berry.name)} Berry</Text>
+        <Text style={bd.name}>{formatName(berry.name)} Berry</Text>
       </View>
 
-      <Card style={{ marginBottom: 12 }}>
-        <CardTitle>Informações</CardTitle>
-        <View style={detail.grid}>
+      <Card style={{ marginBottom: 10 }}>
+        <CardTitle>Detalhes</CardTitle>
+        <View style={bd.grid}>
           {[
             { label: 'Crescimento', value: `${berry.growth_time}h` },
-            { label: 'Colheita máx.', value: `x${berry.max_harvest}` },
+            { label: 'Max Colheita', value: `×${berry.max_harvest}` },
             { label: 'Natural Gift', value: berry.natural_gift_power },
-            { label: 'Tamanho', value: `${berry.size} mm` },
-            { label: 'Suavidade', value: berry.smoothness },
-            { label: 'Firmeza', value: formatName(berry.firmness?.name ?? '—') },
+            { label: 'Tamanho',     value: `${berry.size} mm` },
+            { label: 'Suavidade',   value: berry.smoothness },
+            { label: 'Firmeza',     value: formatName(berry.firmness?.name ?? '—') },
           ].map(({ label, value }) => (
-            <View key={label} style={detail.gridItem}>
-              <Text style={detail.gridLabel}>{label}</Text>
-              <Text style={detail.gridValue}>{value}</Text>
+            <View key={label} style={bd.gridItem}>
+              <Text style={bd.gridLabel}>{label}</Text>
+              <Text style={bd.gridValue}>{value}</Text>
             </View>
           ))}
         </View>
@@ -96,14 +108,14 @@ function BerryDetail({ berry }) {
         <Card>
           <CardTitle>Sabores</CardTitle>
           {activeFlavors.map((f) => {
-            const color = FLAVOR_COLORS[f.flavor.name] ?? '#9CA3AF';
+            const color = FLAVOR_COLORS[f.flavor.name] ?? COLORS.textMuted;
             return (
-              <View key={f.flavor.name} style={detail.flavorRow}>
-                <Text style={[detail.flavorName, { color }]}>{f.flavor.name}</Text>
-                <View style={detail.track}>
-                  <View style={[detail.fill, { width: `${(f.potency / 40) * 100}%`, backgroundColor: color }]} />
+              <View key={f.flavor.name} style={bd.flavorRow}>
+                <Text style={[bd.flavorName, { color }]}>{f.flavor.name}</Text>
+                <View style={bd.track}>
+                  <View style={[bd.fill, { width: `${(f.potency / 40) * 100}%`, backgroundColor: color }]} />
                 </View>
-                <Text style={detail.potency}>{f.potency}</Text>
+                <Text style={bd.potency}>{f.potency}</Text>
               </View>
             );
           })}
@@ -113,11 +125,25 @@ function BerryDetail({ berry }) {
   );
 }
 
+const bd = StyleSheet.create({
+  top:        { alignItems: 'center', marginBottom: 16 },
+  bigSprite:  { width: 96, height: 96 },
+  name:       { fontSize: 22, fontWeight: '900', color: COLORS.text, marginTop: 10, textAlign: 'center' },
+  grid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  gridItem:   { width: '47%', backgroundColor: COLORS.bg, borderRadius: RADIUS.md, padding: 12 },
+  gridLabel:  { fontSize: 10, color: COLORS.textMuted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  gridValue:  { fontSize: 16, fontWeight: '800', color: COLORS.text, textTransform: 'capitalize' },
+  flavorRow:  { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 10 },
+  flavorName: { width: 52, fontSize: 12, fontWeight: '700', textTransform: 'capitalize' },
+  track:      { flex: 1, height: 7, backgroundColor: COLORS.border, borderRadius: 99, overflow: 'hidden' },
+  fill:       { height: '100%', borderRadius: 99 },
+  potency:    { width: 24, fontSize: 12, fontWeight: '800', color: COLORS.text, textAlign: 'right' },
+});
+
 export default function BerriesScreen({ navigation }) {
   const { items: berries, loading, loadingMore, loadMore } = usePaginatedList(fetchBerries);
-  const [query, setQuery]       = useState('');
+  const [query,    setQuery]    = useState('');
   const [selected, setSelected] = useState(null);
-
   const filtered = useLocalSearch(berries, query, ['name']);
 
   const renderBerry = useCallback(({ item }) => (
@@ -125,95 +151,49 @@ export default function BerriesScreen({ navigation }) {
   ), []);
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+    <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
 
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}>
-            <Text style={styles.backText}>‹ Voltar</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>🍒 Berries</Text>
-          <Text style={styles.subtitle}>Frutas do mundo Pokémon</Text>
-          <View style={{ marginTop: 12 }}>
-            <SearchBar value={query} onChangeText={setQuery} placeholder="Buscar berry..." />
-          </View>
+      <View style={s.header}>
+        <BackButton onPress={() => navigation.goBack()} />
+        <Text style={s.title}>🍒 Berries</Text>
+        <Text style={s.subtitle}>Frutas do mundo Pokémon</Text>
+        <View style={{ marginTop: 12 }}>
+          <SearchBar value={query} onChangeText={setQuery} placeholder="Buscar berry..." />
         </View>
-
-        {loading ? (
-          <View style={styles.center}>
-            <ActivityIndicator size="large" />
-            <Text style={styles.loadingText}>Carregando berries...</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={filtered}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={renderBerry}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            onEndReached={!query ? loadMore : undefined}
-            onEndReachedThreshold={0.3}
-            ListFooterComponent={loadingMore ? <ActivityIndicator style={{ padding: 16 }} /> : null}
-            ListEmptyComponent={
-              <View style={styles.center}>
-                <Text style={styles.emptyText}>Nenhuma berry encontrada.</Text>
-              </View>
-            }
-          />
-        )}
       </View>
 
-      <BottomSheet visible={!!selected} onClose={() => setSelected(null)}>
+      {loading ? (
+        <View style={s.center}><ActivityIndicator size="large" color="#EC4899" /></View>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={renderBerry}
+          contentContainerStyle={s.list}
+          showsVerticalScrollIndicator={false}
+          onEndReached={!query ? loadMore : undefined}
+          onEndReachedThreshold={0.4}
+          ListFooterComponent={loadingMore ? <ActivityIndicator style={{ padding: 16 }} /> : null}
+          ListEmptyComponent={<EmptyState icon="🍒" text="Nenhuma berry encontrada." />}
+        />
+      )}
+
+      <BottomSheet visible={!!selected} onClose={() => setSelected(null)} title={selected ? `${formatName(selected.name)} Berry` : ''}>
         {selected && <BerryDetail berry={selected} />}
       </BottomSheet>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea:    { flex: 1, backgroundColor: '#F8FAFC' },
-  container:   { flex: 1 },
+const s = StyleSheet.create({
+  safe:    { flex: 1, backgroundColor: COLORS.bg },
   header: {
-    paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16,
-    backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E5E7EB',
+    paddingHorizontal: 20, paddingTop: 10, paddingBottom: 16,
+    backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
-  backText:    { color: '#3B82F6', fontSize: 15, fontWeight: '600', marginBottom: 8 },
-  title:       { fontSize: 26, fontWeight: '800', color: '#111827' },
-  subtitle:    { fontSize: 13, color: '#6B7280', marginTop: 2 },
-  listContent: { padding: 16, paddingBottom: 30 },
-  card: {
-    backgroundColor: '#FFF', borderRadius: 18, padding: 14, marginBottom: 12,
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 }, elevation: 2,
-  },
-  iconWrapper: { width: 52, height: 52, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  berryImage:  { width: 40, height: 40 },
-  berryEmoji:  { fontSize: 28 },
-  berryName:   { fontSize: 14, fontWeight: '700', color: '#111827', textTransform: 'capitalize', marginBottom: 6 },
-  tagsRow:     { flexDirection: 'row', gap: 6, marginBottom: 6 },
-  tag:         { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
-  tagText:     { fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
-  statsRow:    { flexDirection: 'row', gap: 10 },
-  stat:        { fontSize: 11, color: '#9CA3AF' },
-  arrow:       { fontSize: 22, color: '#D1D5DB' },
-  center:      { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { marginTop: 10, color: '#6B7280' },
-  emptyText:   { color: '#6B7280', fontSize: 15 },
-});
-
-const detail = StyleSheet.create({
-  topRow:     { alignItems: 'center', marginBottom: 16 },
-  bigImage:   { width: 96, height: 96 },
-  name:       { fontSize: 22, fontWeight: '800', color: '#111827', textTransform: 'capitalize', marginTop: 8, textAlign: 'center' },
-  grid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  gridItem:   { width: '47%', backgroundColor: '#F9FAFB', borderRadius: 14, padding: 12 },
-  gridLabel:  { fontSize: 11, color: '#9CA3AF', fontWeight: '600', marginBottom: 4 },
-  gridValue:  { fontSize: 16, fontWeight: '800', color: '#111827', textTransform: 'capitalize' },
-  flavorRow:  { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 },
-  flavorName: { width: 50, fontSize: 12, fontWeight: '700', textTransform: 'capitalize' },
-  track:      { flex: 1, height: 7, backgroundColor: '#F3F4F6', borderRadius: 999, overflow: 'hidden' },
-  fill:       { height: '100%', borderRadius: 999 },
-  potency:    { width: 24, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'right' },
+  title:   { fontSize: 28, fontWeight: '900', color: COLORS.text, marginTop: 4 },
+  subtitle:{ fontSize: 13, color: COLORS.textSub, marginTop: 2, fontWeight: '500' },
+  list:    { padding: 16, paddingBottom: 32 },
+  center:  { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });

@@ -1,44 +1,49 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
-  Image, ScrollView, StatusBar,
+  Image, ScrollView, StatusBar, Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   fetchPokemonSpecies, fetchEvolutionChain,
   fetchAbility, fetchPokemonLocations, fetchPokemonByName,
 } from '../services/pokeapi';
-import { TypeBadge, Card, CardTitle, InfoGrid } from '../components/components';
-import { getTypeColor, STAT_LABELS, STAT_COLORS, formatName, padId } from '../components/constants';
+import { TypeBadge, Card, CardTitle, InfoGrid, BackButton, StatBar, SectionDivider, PillButton } from '../components/components';
+import { COLORS, RADIUS, SHADOW, STAT_LABELS, STAT_COLORS, STAT_ORDER, getTypeColor, formatName, padId, hex2rgba } from '../components/constants';
 
-// ─── StatBar ─────────────────────────────────────────────────────────────────
-function StatBar({ statName, value }) {
-  const color = STAT_COLORS[statName] ?? '#9CA3AF';
-  return (
-    <View style={stat.row}>
-      <Text style={stat.label}>{STAT_LABELS[statName] ?? statName}</Text>
-      <Text style={stat.value}>{value}</Text>
-      <View style={stat.track}>
-        <View style={[stat.fill, { width: `${Math.min((value / 255) * 100, 100)}%`, backgroundColor: color }]} />
-      </View>
-    </View>
-  );
-}
+const { width: SCREEN_W } = Dimensions.get('window');
 
-const stat = StyleSheet.create({
-  row:   { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  label: { width: 58, fontSize: 12, fontWeight: '700', color: '#6B7280' },
-  value: { width: 32, fontSize: 13, fontWeight: '800', color: '#111827', textAlign: 'right', marginRight: 10 },
-  track: { flex: 1, height: 8, backgroundColor: '#F3F4F6', borderRadius: 999, overflow: 'hidden' },
-  fill:  { height: '100%', borderRadius: 999 },
-});
-
-// ─── Flatten evolution chain ──────────────────────────────────────────────────
 function flattenChain(chain, result = []) {
   result.push(chain.species.name);
   chain.evolves_to.forEach((next) => flattenChain(next, result));
   return result;
 }
+
+// ─── Tab Bar ─────────────────────────────────────────────────────────────────
+const TABS = ['Info', 'Stats', 'Evolução', 'Moves'];
+
+function TabBar({ active, onSelect, accentColor }) {
+  return (
+    <View style={tb.wrap}>
+      {TABS.map((t) => {
+        const isActive = active === t;
+        return (
+          <TouchableOpacity key={t} onPress={() => onSelect(t)} activeOpacity={0.7} style={tb.btn}>
+            <Text style={[tb.label, { color: isActive ? accentColor : COLORS.textMuted }]}>{t}</Text>
+            {isActive && <View style={[tb.indicator, { backgroundColor: accentColor }]} />}
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+const tb = StyleSheet.create({
+  wrap:      { flexDirection: 'row', backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  btn:       { flex: 1, alignItems: 'center', paddingVertical: 14, position: 'relative' },
+  label:     { fontSize: 13, fontWeight: '700' },
+  indicator: { position: 'absolute', bottom: 0, left: '20%', right: '20%', height: 3, borderRadius: 2 },
+});
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function PokemonDetailScreen({ route, navigation }) {
@@ -51,6 +56,8 @@ export default function PokemonDetailScreen({ route, navigation }) {
   const [abilities,  setAbilities]  = useState([]);
   const [locations,  setLocations]  = useState([]);
   const [loading,    setLoading]    = useState(true);
+  const [tab,        setTab]        = useState('Info');
+  const [shiny,      setShiny]      = useState(false);
 
   useEffect(() => { loadAll(); }, []);
 
@@ -67,198 +74,259 @@ export default function PokemonDetailScreen({ route, navigation }) {
         fetchEvolutionChain(spec.evolution_chain.url),
         Promise.all(pokemon.abilities.map(({ ability }) => fetchAbility(ability.name))),
       ]);
-
       setAbilities(abilityData);
       const names   = flattenChain(evoData.chain);
       const details = await Promise.all(names.map(fetchPokemonByName));
       setEvoDetails(details);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   }
+
+  const spriteUri = shiny
+    ? pokemon.sprites.front_shiny ?? pokemon.sprites.front_default
+    : pokemon.sprites.front_default;
 
   const flavorText = species?.flavor_text_entries
     ?.find((e) => e.language.name === 'en')?.flavor_text?.replace(/\f/g, ' ') ?? '';
 
-  const infoItems = [
-    { label: 'Altura',        value: `${(pokemon.height / 10).toFixed(1)} m` },
-    { label: 'Peso',          value: `${(pokemon.weight / 10).toFixed(1)} kg` },
-    { label: 'Captura',       value: species?.capture_rate },
-    { label: 'Felicidade',    value: species?.base_happiness },
-    { label: 'Habitat',       value: species?.habitat?.name },
-    { label: 'Geração',       value: species?.generation?.name?.replace('generation-', '').toUpperCase() },
-  ];
-
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: accentColor }]} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[s.safe, { backgroundColor: accentColor }]} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="light-content" backgroundColor={accentColor} />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* Hero */}
-        <View style={[styles.hero, { backgroundColor: accentColor }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}>
-            <Text style={styles.backText}>‹ Voltar</Text>
-          </TouchableOpacity>
-          <View style={styles.heroRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.heroName}>{formatName(pokemon.name)}</Text>
-              <Text style={styles.heroNumber}>#{padId(pokemon.id)}</Text>
-              <View style={styles.typesRow}>
-                {pokemon.types.map((t) => (
-                  <TypeBadge key={t.type.name} type={t.type.name} light />
-                ))}
-              </View>
+      {/* ── Hero ── */}
+      <View style={[s.hero, { backgroundColor: accentColor }]}>
+        <BackButton onPress={() => navigation.goBack()} light />
+
+        <View style={s.heroContent}>
+          {/* Left: name, id, types */}
+          <View style={s.heroLeft}>
+            <Text style={s.heroNum}>{padId(pokemon.id)}</Text>
+            <Text style={s.heroName}>{formatName(pokemon.name)}</Text>
+            <View style={s.heroTypes}>
+              {pokemon.types.map((t) => <TypeBadge key={t.type.name} type={t.type.name} light />)}
             </View>
-            <Image source={{ uri: pokemon.sprites.front_default }} style={styles.heroImage} />
+            {(species?.is_legendary || species?.is_mythical) && (
+              <View style={s.heroBadge}>
+                <Text style={s.heroBadgeText}>{species.is_legendary ? '⭐ Lendário' : '✨ Mítico'}</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Right: sprite + shiny toggle */}
+          <View style={s.heroRight}>
+            <Image source={{ uri: spriteUri }} style={s.heroSprite} resizeMode="contain" />
+            <TouchableOpacity
+              style={[s.shinyBtn, shiny && s.shinyBtnActive]}
+              onPress={() => setShiny((v) => !v)}
+              activeOpacity={0.8}
+            >
+              <Text style={s.shinyBtnText}>{shiny ? '✨ Shiny' : '⬜ Normal'}</Text>
+            </TouchableOpacity>
           </View>
         </View>
+      </View>
 
-        {/* Content */}
-        <View style={styles.content}>
-          {/* Basic info */}
-          <Card>
-            <InfoGrid items={infoItems} />
-            <View style={styles.badgesRow}>
-              {species?.is_legendary && <SpecialBadge color="#EAB308" label="⭐ Lendário" />}
-              {species?.is_mythical  && <SpecialBadge color="#8B5CF6" label="✨ Mítico" />}
-            </View>
-          </Card>
+      {/* ── Content ── */}
+      <View style={s.body}>
+        <TabBar active={tab} onSelect={setTab} accentColor={accentColor} />
 
-          {/* Pokédex text */}
-          {!!flavorText && (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={s.scroll}
+        >
+          {/* ── INFO TAB ── */}
+          {tab === 'Info' && (
+            <>
+              {!!flavorText && (
+                <Card>
+                  <Text style={s.flavorText}>"{flavorText}"</Text>
+                </Card>
+              )}
+
+              <Card>
+                <CardTitle>Detalhes</CardTitle>
+                <InfoGrid items={[
+                  { label: 'Altura',     value: `${(pokemon.height / 10).toFixed(1)} m` },
+                  { label: 'Peso',       value: `${(pokemon.weight / 10).toFixed(1)} kg` },
+                  { label: 'Captura',    value: species?.capture_rate },
+                  { label: 'Felicidade', value: species?.base_happiness },
+                  { label: 'Habitat',    value: species?.habitat?.name },
+                  { label: 'Geração',    value: species?.generation?.name?.replace('generation-', '').toUpperCase() },
+                ]} />
+              </Card>
+
+              {abilities.length > 0 && (
+                <Card>
+                  <CardTitle>Habilidades</CardTitle>
+                  {abilities.map((ab, idx) => {
+                    const desc = ab.effect_entries?.find((e) => e.language.name === 'en')?.short_effect ?? '';
+                    const isHidden = pokemon.abilities[idx]?.is_hidden;
+                    return (
+                      <View key={ab.name}>
+                        {idx > 0 && <SectionDivider />}
+                        <View style={s.abilityHeader}>
+                          <Text style={s.abilityName}>{formatName(ab.name)}</Text>
+                          {isHidden && <View style={s.hiddenBadge}><Text style={s.hiddenText}>Oculta</Text></View>}
+                        </View>
+                        {!!desc && <Text style={s.abilityDesc}>{desc}</Text>}
+                      </View>
+                    );
+                  })}
+                </Card>
+              )}
+
+              {locations.length > 0 && (
+                <Card>
+                  <CardTitle>Onde Encontrar</CardTitle>
+                  {locations.map((loc, idx) => (
+                    <View key={idx}>
+                      {idx > 0 && <SectionDivider />}
+                      <Text style={s.locArea}>{formatName(loc.location_area.name)}</Text>
+                      <Text style={s.locGames}>{loc.version_details.map((v) => v.version.name).join(' · ')}</Text>
+                    </View>
+                  ))}
+                </Card>
+              )}
+            </>
+          )}
+
+          {/* ── STATS TAB ── */}
+          {tab === 'Stats' && (
             <Card>
-              <CardTitle>Pokédex</CardTitle>
-              <Text style={styles.description}>{flavorText}</Text>
+              <CardTitle>Base Stats</CardTitle>
+              {pokemon.stats.map((s) => (
+                <StatBar
+                  key={s.stat.name}
+                  statName={s.stat.name}
+                  label={STAT_LABELS[s.stat.name] ?? s.stat.name}
+                  value={s.base_stat}
+                  color={STAT_COLORS[s.stat.name] ?? accentColor}
+                />
+              ))}
+              <SectionDivider />
+              <View style={st.totalRow}>
+                <Text style={st.totalLabel}>Total</Text>
+                <Text style={[st.totalValue, { color: accentColor }]}>
+                  {pokemon.stats.reduce((sum, s) => sum + s.base_stat, 0)}
+                </Text>
+              </View>
             </Card>
           )}
 
-          {/* Stats */}
-          <Card>
-            <CardTitle>Estatísticas</CardTitle>
-            {pokemon.stats.map((s) => (
-              <StatBar key={s.stat.name} statName={s.stat.name} value={s.base_stat} />
-            ))}
-          </Card>
-
-          {/* Evolution Chain */}
-          {evoDetails.length > 0 && (
+          {/* ── EVOLUÇÃO TAB ── */}
+          {tab === 'Evolução' && (
             <Card>
               <CardTitle>Cadeia Evolutiva</CardTitle>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={styles.evoRow}>
-                  {evoDetails.map((evo, idx) => (
-                    <React.Fragment key={evo.id}>
-                      <TouchableOpacity
-                        style={styles.evoItem}
-                        activeOpacity={evo.id !== pokemon.id ? 0.7 : 1}
-                        onPress={() => evo.id !== pokemon.id && navigation.replace('PokemonDetail', { pokemon: evo })}
-                      >
-                        <View style={[styles.evoImageWrapper, evo.id === pokemon.id && { borderWidth: 2, borderColor: accentColor }]}>
-                          <Image source={{ uri: evo.sprites.front_default }} style={styles.evoImage} />
+              {evoDetails.length === 0 && !loading && (
+                <Text style={s.abilityDesc}>Este Pokémon não possui evoluções.</Text>
+              )}
+              <View style={evo.chain}>
+                {evoDetails.map((e, idx) => {
+                  const isCurrent = e.id === pokemon.id;
+                  const eColor    = getTypeColor(e.types[0]?.type.name);
+                  return (
+                    <View key={e.id} style={evo.step}>
+                      {idx > 0 && (
+                        <View style={evo.arrowWrap}>
+                          <Text style={evo.arrowText}>↓</Text>
                         </View>
-                        <Text style={[styles.evoName, evo.id === pokemon.id && { color: accentColor, fontWeight: '800' }]}>
-                          {formatName(evo.name)}
-                        </Text>
+                      )}
+                      <TouchableOpacity
+                        activeOpacity={isCurrent ? 1 : 0.75}
+                        onPress={() => !isCurrent && navigation.replace('PokemonDetail', { pokemon: e })}
+                        style={[evo.card, isCurrent && { borderColor: accentColor, borderWidth: 2 }]}
+                      >
+                        <View style={[evo.imgWrap, { backgroundColor: hex2rgba(eColor, 0.1) }]}>
+                          <Image source={{ uri: e.sprites.front_default }} style={evo.img} resizeMode="contain" />
+                        </View>
+                        <Text style={evo.num}>{padId(e.id)}</Text>
+                        <Text style={[evo.name, isCurrent && { color: accentColor }]}>{formatName(e.name)}</Text>
+                        <View style={evo.types}>
+                          {e.types.map((t) => <TypeBadge key={t.type.name} type={t.type.name} size="sm" />)}
+                        </View>
+                        {isCurrent && <Text style={[evo.current, { color: accentColor }]}>Atual</Text>}
                       </TouchableOpacity>
-                      {idx < evoDetails.length - 1 && <Text style={styles.evoArrow}>›</Text>}
-                    </React.Fragment>
-                  ))}
-                </View>
-              </ScrollView>
+                    </View>
+                  );
+                })}
+              </View>
             </Card>
           )}
 
-          {/* Abilities */}
-          {abilities.length > 0 && (
+          {/* ── MOVES TAB ── */}
+          {tab === 'Moves' && (
             <Card>
-              <CardTitle>Habilidades</CardTitle>
-              {abilities.map((ab) => {
-                const desc = ab.effect_entries?.find((e) => e.language.name === 'en')?.short_effect ?? '';
-                return (
-                  <View key={ab.name} style={styles.abilityItem}>
-                    <Text style={styles.abilityName}>{formatName(ab.name)}</Text>
-                    {!!desc && <Text style={styles.abilityDesc}>{desc}</Text>}
-                  </View>
-                );
-              })}
+              <CardTitle>Movimentos</CardTitle>
+              <Text style={s.abilityDesc}>
+                Este Pokémon possui {pokemon.moves.length} movimentos registrados.
+              </Text>
+              <SectionDivider />
+              <PillButton
+                label="Ver todos os movimentos"
+                icon="⚔️"
+                color={accentColor}
+                onPress={() => navigation.navigate('PokemonMoves', { pokemon })}
+              />
             </Card>
           )}
 
-          {/* Locations */}
-          {locations.length > 0 && (
-            <Card>
-              <CardTitle>Onde Encontrar</CardTitle>
-              {locations.map((loc, idx) => (
-                <View key={idx} style={styles.locationItem}>
-                  <Text style={styles.locationArea}>{formatName(loc.location_area.name)}</Text>
-                  <Text style={styles.locationGames}>
-                    {loc.version_details.map((v) => v.version.name).join(', ')}
-                  </Text>
-                </View>
-              ))}
-            </Card>
+          {loading && (
+            <View style={{ alignItems: 'center', paddingTop: 20 }}>
+              <ActivityIndicator color={accentColor} />
+            </View>
           )}
-
-          {/* Moves button */}
-          <TouchableOpacity
-            style={[styles.movesBtn, { backgroundColor: accentColor }]}
-            onPress={() => navigation.navigate('PokemonMoves', { pokemon })}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.movesBtnText}>⚔️  Ver Movimentos</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-
-      {loading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#FFFFFF" />
-        </View>
-      )}
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
 
-function SpecialBadge({ color, label }) {
-  return (
-    <View style={[special.badge, { backgroundColor: color }]}>
-      <Text style={special.text}>{label}</Text>
-    </View>
-  );
-}
-
-const special = StyleSheet.create({
-  badge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999, marginRight: 8 },
-  text:  { color: '#FFF', fontSize: 12, fontWeight: '700' },
+const s = StyleSheet.create({
+  safe:         { flex: 1 },
+  hero:         { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 16 },
+  heroContent:  { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
+  heroLeft:     { flex: 1, paddingBottom: 8 },
+  heroNum:      { fontSize: 12, fontWeight: '800', color: 'rgba(255,255,255,0.6)', letterSpacing: 1, marginBottom: 2 },
+  heroName:     { fontSize: 30, fontWeight: '900', color: '#FFF', letterSpacing: -0.5, marginBottom: 10 },
+  heroTypes:    { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  heroBadge:    { alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: RADIUS.sm },
+  heroBadgeText:{ color: '#FFF', fontSize: 12, fontWeight: '700' },
+  heroRight:    { alignItems: 'center', gap: 8 },
+  heroSprite:   { width: 140, height: 140 },
+  shinyBtn:     { backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 12, paddingVertical: 5, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
+  shinyBtnActive: { backgroundColor: 'rgba(255,255,255,0.35)' },
+  shinyBtnText: { color: '#FFF', fontSize: 11, fontWeight: '700' },
+  body:         { flex: 1, backgroundColor: COLORS.bg, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, overflow: 'hidden' },
+  scroll:       { padding: 16, paddingBottom: 40 },
+  flavorText:   { fontSize: 14, lineHeight: 22, color: COLORS.textSub, fontStyle: 'italic' },
+  abilityHeader:{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  abilityName:  { fontSize: 15, fontWeight: '800', color: COLORS.text, textTransform: 'capitalize' },
+  hiddenBadge:  { backgroundColor: '#F3F4F6', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  hiddenText:   { fontSize: 10, fontWeight: '700', color: COLORS.textSub },
+  abilityDesc:  { fontSize: 13, lineHeight: 20, color: COLORS.textSub },
+  locArea:      { fontSize: 14, fontWeight: '700', color: COLORS.text, textTransform: 'capitalize' },
+  locGames:     { fontSize: 12, color: COLORS.textMuted, marginTop: 3, textTransform: 'capitalize' },
 });
 
-const styles = StyleSheet.create({
-  safeArea:       { flex: 1 },
-  hero:           { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20 },
-  backText:       { color: '#FFF', fontSize: 15, fontWeight: '600', marginBottom: 16 },
-  heroRow:        { flexDirection: 'row', alignItems: 'center' },
-  heroName:       { fontSize: 28, fontWeight: '800', color: '#FFF', textTransform: 'capitalize' },
-  heroNumber:     { fontSize: 14, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
-  typesRow:       { flexDirection: 'row', gap: 8, marginTop: 10 },
-  heroImage:      { width: 120, height: 120 },
-  content:        { padding: 16, backgroundColor: '#F8FAFC', borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -16 },
-  badgesRow:      { flexDirection: 'row', marginTop: 12 },
-  description:    { fontSize: 14, lineHeight: 22, color: '#374151' },
-  evoRow:         { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
-  evoItem:        { alignItems: 'center', marginHorizontal: 4 },
-  evoImageWrapper:{ width: 70, height: 70, borderRadius: 18, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
-  evoImage:       { width: 56, height: 56 },
-  evoName:        { fontSize: 12, color: '#374151', marginTop: 5, textTransform: 'capitalize' },
-  evoArrow:       { fontSize: 22, color: '#D1D5DB', marginHorizontal: 4 },
-  abilityItem:    { marginBottom: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  abilityName:    { fontSize: 14, fontWeight: '700', color: '#111827', textTransform: 'capitalize', marginBottom: 4 },
-  abilityDesc:    { fontSize: 13, lineHeight: 20, color: '#6B7280' },
-  locationItem:   { marginBottom: 10, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  locationArea:   { fontSize: 13, fontWeight: '700', color: '#111827', textTransform: 'capitalize' },
-  locationGames:  { fontSize: 12, color: '#9CA3AF', marginTop: 2, textTransform: 'capitalize' },
-  movesBtn:       { borderRadius: 18, paddingVertical: 16, alignItems: 'center', marginTop: 4 },
-  movesBtnText:   { color: '#FFF', fontSize: 16, fontWeight: '800' },
-  loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.25)', justifyContent: 'center', alignItems: 'center' },
+const st = StyleSheet.create({
+  totalRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  totalLabel: { fontSize: 13, fontWeight: '800', color: COLORS.textSub, textTransform: 'uppercase', letterSpacing: 0.8 },
+  totalValue: { fontSize: 24, fontWeight: '900' },
+});
+
+const evo = StyleSheet.create({
+  chain:    { alignItems: 'center' },
+  step:     { alignItems: 'center', width: '100%' },
+  arrowWrap:{ paddingVertical: 8 },
+  arrowText:{ fontSize: 22, color: COLORS.textMuted },
+  card: {
+    backgroundColor: COLORS.bg, borderRadius: RADIUS.lg, padding: 16,
+    alignItems: 'center', width: '100%', marginBottom: 4,
+  },
+  imgWrap:  { width: 88, height: 88, borderRadius: RADIUS.md, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  img:      { width: 72, height: 72 },
+  num:      { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5, marginBottom: 2 },
+  name:     { fontSize: 16, fontWeight: '800', color: COLORS.text, textTransform: 'capitalize', marginBottom: 8 },
+  types:    { flexDirection: 'row', gap: 6, marginBottom: 4 },
+  current:  { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 4 },
 });

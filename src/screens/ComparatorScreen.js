@@ -5,13 +5,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { fetchAllPokemonIndex, fetchPokemonByName } from '../services/pokeapi';
-import { TypeBadge, Card, CardTitle } from '../components/components';
-import { getTypeColor, STAT_LABELS, STAT_ORDER, formatName, padId } from '../components/constants';
-import { useDebounce } from '../hooks/hooks';
+import { TypeBadge, Card, CardTitle, SectionDivider, BackButton } from '../components/components';
+import { COLORS, RADIUS, SHADOW, STAT_LABELS, STAT_ORDER, STAT_COLORS, getTypeColor, formatName, padId, hex2rgba } from '../components/constants';
 
-// ─── SearchPanel ──────────────────────────────────────────────────────────────
-function SearchPanel({ label, selected, onSelect }) {
-  const [query, setQuery]     = useState('');
+// ─── Pokemon Search Panel ─────────────────────────────────────────────────────
+function PickerPanel({ label, selected, onSelect }) {
+  const [query,   setQuery]   = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const timerRef = useRef(null);
@@ -25,226 +24,223 @@ function SearchPanel({ label, selected, onSelect }) {
       try {
         const index   = await fetchAllPokemonIndex();
         const q       = text.toLowerCase();
-        const matched = index.filter((p) => p.name.includes(q) || String(p.id) === q).slice(0, 8);
-        const detail  = await Promise.all(matched.map((p) => fetchPokemonByName(p.name)));
-        setResults(detail);
+        const matched = index.filter((p) => p.name.includes(q) || String(p.id) === q).slice(0, 6);
+        setResults(await Promise.all(matched.map((p) => fetchPokemonByName(p.name))));
       } catch (e) { console.error(e); }
       finally { setLoading(false); }
     }, 400);
   }
 
-  function handleSelect(item) {
-    onSelect(item);
-    setResults([]);
-    setQuery('');
-  }
+  function pick(item) { onSelect(item); setResults([]); setQuery(''); }
+
+  const color = selected ? getTypeColor(selected.types[0]?.type.name) : COLORS.textMuted;
 
   return (
-    <View style={panel.container}>
-      <Text style={panel.label}>{label}</Text>
+    <View style={pp.wrap}>
+      <Text style={pp.label}>{label}</Text>
       {selected ? (
-        <TouchableOpacity style={panel.selected} onPress={() => onSelect(null)} activeOpacity={0.8}>
-          <Image source={{ uri: selected.sprites.front_default }} style={panel.selectedImage} />
-          <Text style={panel.selectedName}>{formatName(selected.name)}</Text>
-          <Text style={panel.change}>Trocar ✕</Text>
+        <TouchableOpacity style={[pp.selected, { borderColor: color }]} onPress={() => onSelect(null)} activeOpacity={0.8}>
+          <View style={[pp.selectedImg, { backgroundColor: hex2rgba(color, 0.1) }]}>
+            <Image source={{ uri: selected.sprites.front_default }} style={pp.sprite} resizeMode="contain" />
+          </View>
+          <Text style={pp.selectedName}>{formatName(selected.name)}</Text>
+          <Text style={pp.selectedNum}>{padId(selected.id)}</Text>
+          <Text style={[pp.change, { color }]}>Trocar</Text>
         </TouchableOpacity>
       ) : (
-        <>
-          <View style={panel.inputWrapper}>
-            <TextInput
-              value={query}
-              onChangeText={handleQuery}
-              placeholder="Buscar..."
-              placeholderTextColor="#9CA3AF"
-              style={panel.input}
-              autoCorrect={false}
-              autoCapitalize="none"
-            />
-          </View>
-          {loading && <ActivityIndicator size="small" style={{ marginTop: 8 }} />}
+        <View style={pp.searchWrap}>
+          <TextInput
+            value={query}
+            onChangeText={handleQuery}
+            placeholder="Buscar..."
+            placeholderTextColor={COLORS.textMuted}
+            style={pp.input}
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
+          {loading && <ActivityIndicator size="small" style={{ marginTop: 8 }} color="#3B82F6" />}
           {results.map((item) => (
-            <TouchableOpacity key={item.id} style={panel.result} onPress={() => handleSelect(item)}>
-              <Image source={{ uri: item.sprites.front_default }} style={panel.resultImage} />
-              <Text style={panel.resultName}>{formatName(item.name)}</Text>
+            <TouchableOpacity key={item.id} style={pp.result} onPress={() => pick(item)}>
+              <Image source={{ uri: item.sprites.front_default }} style={pp.resultImg} resizeMode="contain" />
+              <View>
+                <Text style={pp.resultName}>{formatName(item.name)}</Text>
+                <Text style={pp.resultNum}>{padId(item.id)}</Text>
+              </View>
             </TouchableOpacity>
           ))}
-        </>
+        </View>
       )}
     </View>
   );
 }
 
-const panel = StyleSheet.create({
-  container:     { flex: 1 },
-  label:         { fontSize: 13, fontWeight: '700', color: '#6B7280', marginBottom: 8, textAlign: 'center' },
-  inputWrapper:  { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, backgroundColor: '#F9FAFB' },
-  input:         { paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#111827' },
-  result:        { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  resultImage:   { width: 36, height: 36, marginRight: 10 },
-  resultName:    { fontSize: 14, color: '#111827', textTransform: 'capitalize' },
-  selected:      { alignItems: 'center', padding: 12, backgroundColor: '#F9FAFB', borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB' },
-  selectedImage: { width: 72, height: 72 },
-  selectedName:  { fontSize: 15, fontWeight: '700', color: '#111827', textTransform: 'capitalize' },
-  change:        { fontSize: 11, color: '#9CA3AF', marginTop: 4 },
+const pp = StyleSheet.create({
+  wrap:        { flex: 1 },
+  label:       { fontSize: 11, fontWeight: '800', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, textAlign: 'center' },
+  selected:    { alignItems: 'center', padding: 12, backgroundColor: COLORS.bg, borderRadius: RADIUS.lg, borderWidth: 2 },
+  selectedImg: { width: 80, height: 80, borderRadius: RADIUS.md, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
+  sprite:      { width: 64, height: 64 },
+  selectedName:{ fontSize: 14, fontWeight: '800', color: COLORS.text, textTransform: 'capitalize', textAlign: 'center' },
+  selectedNum: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600', marginTop: 2 },
+  change:      { fontSize: 11, fontWeight: '700', marginTop: 6 },
+  searchWrap:  { backgroundColor: COLORS.bg, borderRadius: RADIUS.lg, padding: 4, borderWidth: 1, borderColor: COLORS.border },
+  input:       { paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: COLORS.text, fontWeight: '500' },
+  result:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 6, borderTopWidth: 1, borderTopColor: COLORS.border, gap: 8 },
+  resultImg:   { width: 36, height: 36 },
+  resultName:  { fontSize: 13, fontWeight: '700', color: COLORS.text, textTransform: 'capitalize' },
+  resultNum:   { fontSize: 11, color: COLORS.textMuted },
 });
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function ComparatorScreen({ navigation }) {
-  const [pokemonA, setPokemonA] = useState(null);
-  const [pokemonB, setPokemonB] = useState(null);
+  const [pokeA, setPokeA] = useState(null);
+  const [pokeB, setPokeB] = useState(null);
 
-  const getStat = (pokemon, name) =>
-    pokemon?.stats.find((s) => s.stat.name === name)?.base_stat ?? 0;
-
-  const canCompare = pokemonA && pokemonB;
-  const totalA = canCompare ? STAT_ORDER.reduce((s, n) => s + getStat(pokemonA, n), 0) : 0;
-  const totalB = canCompare ? STAT_ORDER.reduce((s, n) => s + getStat(pokemonB, n), 0) : 0;
+  const getStat = (p, name) => p?.stats.find((s) => s.stat.name === name)?.base_stat ?? 0;
+  const totalA  = STAT_ORDER.reduce((s, n) => s + getStat(pokeA, n), 0);
+  const totalB  = STAT_ORDER.reduce((s, n) => s + getStat(pokeB, n), 0);
+  const canComp = pokeA && pokeB;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+    <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.surface} />
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}>
-            <Text style={styles.backText}>‹ Voltar</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>Comparador ⚖️</Text>
-          <Text style={styles.subtitle}>Compare dois Pokémons lado a lado</Text>
+      <View style={s.header}>
+        <BackButton onPress={() => navigation.goBack()} />
+        <Text style={s.title}>Comparador ⚖️</Text>
+        <Text style={s.subtitle}>Confronte dois Pokémons</Text>
+      </View>
+
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+        {/* Pickers */}
+        <View style={s.pickers}>
+          <PickerPanel label="Pokémon A" selected={pokeA} onSelect={setPokeA} />
+          <Text style={s.vs}>VS</Text>
+          <PickerPanel label="Pokémon B" selected={pokeB} onSelect={setPokeB} />
         </View>
 
-        <View style={styles.content}>
-          {/* Search panels */}
-          <View style={styles.panelsRow}>
-            <SearchPanel label="Pokémon A" selected={pokemonA} onSelect={setPokemonA} />
-            <Text style={styles.vs}>VS</Text>
-            <SearchPanel label="Pokémon B" selected={pokemonB} onSelect={setPokemonB} />
+        {!canComp && (
+          <View style={s.empty}>
+            <Text style={s.emptyIcon}>⚖️</Text>
+            <Text style={s.emptyText}>Escolha dois Pokémons para comparar</Text>
           </View>
+        )}
 
-          {!canCompare && (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>⚖️</Text>
-              <Text style={styles.emptyText}>Selecione dois Pokémons para comparar</Text>
-            </View>
-          )}
-
-          {/* Stats */}
-          {canCompare && (
+        {canComp && (
+          <>
+            {/* Stats card */}
             <Card>
-              <CardTitle>Estatísticas</CardTitle>
+              <CardTitle>Base Stats</CardTitle>
 
-              {/* Name headers */}
-              <View style={styles.statHeaderRow}>
-                <Text style={styles.statHeaderName} numberOfLines={1}>{formatName(pokemonA.name)}</Text>
-                <View style={styles.statLabelCol} />
-                <Text style={[styles.statHeaderName, { textAlign: 'right' }]} numberOfLines={1}>
-                  {formatName(pokemonB.name)}
+              <View style={s.statNames}>
+                <Text style={[s.statPlayerName, { color: getTypeColor(pokeA.types[0]?.type.name) }]} numberOfLines={1}>
+                  {formatName(pokeA.name)}
+                </Text>
+                <View style={s.statLabelCol} />
+                <Text style={[s.statPlayerName, { color: getTypeColor(pokeB.types[0]?.type.name), textAlign: 'right' }]} numberOfLines={1}>
+                  {formatName(pokeB.name)}
                 </Text>
               </View>
 
               {STAT_ORDER.map((name) => {
-                const vA = getStat(pokemonA, name);
-                const vB = getStat(pokemonB, name);
+                const vA = getStat(pokeA, name);
+                const vB = getStat(pokeB, name);
+                const colorA = vA >= vB ? (STAT_COLORS[name] ?? '#22C55E') : COLORS.border;
+                const colorB = vB >= vA ? (STAT_COLORS[name] ?? '#22C55E') : COLORS.border;
                 return (
-                  <View key={name} style={styles.statRow}>
-                    <View style={styles.barLeft}>
-                      <Text style={[styles.statNum, vA > vB && styles.winner]}>{vA}</Text>
-                      <View style={styles.trackLeft}>
-                        <View style={[styles.fillLeft, { width: `${(vA / 255) * 100}%`, backgroundColor: vA >= vB ? '#22C55E' : '#E5E7EB' }]} />
+                  <View key={name} style={s.statRow}>
+                    <View style={s.barLeft}>
+                      <Text style={[s.statNum, vA > vB && { color: STAT_COLORS[name] }]}>{vA}</Text>
+                      <View style={s.trackLeft}>
+                        <View style={[s.fillLeft, { width: `${(vA / 255) * 100}%`, backgroundColor: colorA }]} />
                       </View>
                     </View>
-                    <Text style={styles.statLabel}>{STAT_LABELS[name]}</Text>
-                    <View style={styles.barRight}>
-                      <View style={styles.trackRight}>
-                        <View style={[styles.fillRight, { width: `${(vB / 255) * 100}%`, backgroundColor: vB >= vA ? '#22C55E' : '#E5E7EB' }]} />
+                    <Text style={s.statLabel}>{STAT_LABELS[name]}</Text>
+                    <View style={s.barRight}>
+                      <View style={s.trackRight}>
+                        <View style={[s.fillRight, { width: `${(vB / 255) * 100}%`, backgroundColor: colorB }]} />
                       </View>
-                      <Text style={[styles.statNum, vB > vA && styles.winner]}>{vB}</Text>
+                      <Text style={[s.statNum, vB > vA && { color: STAT_COLORS[name] }]}>{vB}</Text>
                     </View>
                   </View>
                 );
               })}
 
-              {/* Total */}
-              <View style={styles.totalRow}>
-                <Text style={[styles.totalNum, totalA > totalB && { color: '#22C55E' }]}>{totalA}</Text>
-                <Text style={styles.totalLabel}>Total</Text>
-                <Text style={[styles.totalNum, { textAlign: 'right' }, totalB > totalA && { color: '#22C55E' }]}>{totalB}</Text>
+              <SectionDivider />
+              <View style={s.totalRow}>
+                <Text style={[s.totalNum, { color: totalA > totalB ? '#22C55E' : COLORS.textMuted }]}>{totalA}</Text>
+                <Text style={s.totalLabel}>TOTAL</Text>
+                <Text style={[s.totalNum, { textAlign: 'right', color: totalB > totalA ? '#22C55E' : COLORS.textMuted }]}>{totalB}</Text>
               </View>
             </Card>
-          )}
 
-          {/* Types */}
-          {canCompare && (
+            {/* Types */}
             <Card>
               <CardTitle>Tipos</CardTitle>
-              <View style={styles.typesRow}>
-                <View style={styles.typesCol}>
-                  {pokemonA.types.map((t) => <TypeBadge key={t.type.name} type={t.type.name} />)}
+              <View style={s.typesRow}>
+                <View style={s.typesCol}>
+                  {pokeA.types.map((t) => <TypeBadge key={t.type.name} type={t.type.name} />)}
                 </View>
-                <View style={styles.typesCol}>
-                  {pokemonB.types.map((t) => <TypeBadge key={t.type.name} type={t.type.name} />)}
+                <View style={s.typesCol}>
+                  {pokeB.types.map((t) => <TypeBadge key={t.type.name} type={t.type.name} />)}
                 </View>
               </View>
             </Card>
-          )}
 
-          {/* Size */}
-          {canCompare && (
+            {/* Size */}
             <Card>
               <CardTitle>Tamanho & Peso</CardTitle>
-              <View style={styles.sizeRow}>
-                {[pokemonA, pokemonB].map((p, i) => (
-                  <View key={i} style={styles.sizeCol}>
-                    <Text style={styles.sizeVal}>{(p.height / 10).toFixed(1)} m</Text>
-                    <Text style={styles.sizeLbl}>Altura</Text>
-                    <Text style={[styles.sizeVal, { marginTop: 10 }]}>{(p.weight / 10).toFixed(1)} kg</Text>
-                    <Text style={styles.sizeLbl}>Peso</Text>
+              <View style={s.sizeRow}>
+                {[pokeA, pokeB].map((p, i) => (
+                  <View key={i} style={s.sizeCol}>
+                    <Text style={s.sizeVal}>{(p.height / 10).toFixed(1)} m</Text>
+                    <Text style={s.sizeLbl}>Altura</Text>
+                    <Text style={[s.sizeVal, { marginTop: 12 }]}>{(p.weight / 10).toFixed(1)} kg</Text>
+                    <Text style={s.sizeLbl}>Peso</Text>
                   </View>
                 ))}
               </View>
             </Card>
-          )}
-        </View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea:      { flex: 1, backgroundColor: '#F8FAFC' },
+const s = StyleSheet.create({
+  safe:    { flex: 1, backgroundColor: COLORS.bg },
   header: {
-    paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16,
-    backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E5E7EB',
+    paddingHorizontal: 20, paddingTop: 10, paddingBottom: 16,
+    backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
-  backText:      { color: '#3B82F6', fontSize: 15, fontWeight: '600', marginBottom: 8 },
-  title:         { fontSize: 26, fontWeight: '800', color: '#111827' },
-  subtitle:      { fontSize: 13, color: '#6B7280', marginTop: 2 },
-  content:       { padding: 16 },
-  panelsRow:     { flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginBottom: 16 },
-  vs:            { fontSize: 16, fontWeight: '800', color: '#9CA3AF', paddingTop: 28 },
-  statHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  statHeaderName:{ flex: 1, fontSize: 13, fontWeight: '700', color: '#374151', textTransform: 'capitalize' },
-  statLabelCol:  { width: 52 },
-  statRow:       { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  barLeft:       { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6 },
-  barRight:      { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  trackLeft:     { flex: 1, height: 7, backgroundColor: '#F3F4F6', borderRadius: 999, overflow: 'hidden', flexDirection: 'row', justifyContent: 'flex-end' },
-  trackRight:    { flex: 1, height: 7, backgroundColor: '#F3F4F6', borderRadius: 999, overflow: 'hidden' },
-  fillLeft:      { height: '100%', borderRadius: 999 },
-  fillRight:     { height: '100%', borderRadius: 999 },
-  statLabel:     { width: 52, textAlign: 'center', fontSize: 11, fontWeight: '700', color: '#9CA3AF' },
-  statNum:       { fontSize: 13, fontWeight: '700', color: '#9CA3AF', minWidth: 28, textAlign: 'center' },
-  winner:        { color: '#22C55E' },
-  totalRow:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
-  totalNum:      { fontSize: 18, fontWeight: '800', color: '#111827', flex: 1 },
-  totalLabel:    { fontSize: 12, fontWeight: '700', color: '#6B7280', textAlign: 'center', width: 52 },
-  typesRow:      { flexDirection: 'row' },
-  typesCol:      { flex: 1, gap: 6, alignItems: 'center' },
-  sizeRow:       { flexDirection: 'row' },
-  sizeCol:       { flex: 1, alignItems: 'center' },
-  sizeVal:       { fontSize: 20, fontWeight: '800', color: '#111827' },
-  sizeLbl:       { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
-  emptyState:    { alignItems: 'center', paddingTop: 40 },
-  emptyIcon:     { fontSize: 48, marginBottom: 12 },
-  emptyText:     { fontSize: 15, color: '#9CA3AF', textAlign: 'center' },
+  title:   { fontSize: 28, fontWeight: '900', color: COLORS.text, marginTop: 4 },
+  subtitle:{ fontSize: 13, color: COLORS.textSub, marginTop: 2, fontWeight: '500' },
+  scroll:  { padding: 16, paddingBottom: 40 },
+  pickers: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', marginBottom: 16 },
+  vs:      { fontSize: 15, fontWeight: '900', color: COLORS.textMuted, paddingTop: 40 },
+  empty:   { alignItems: 'center', paddingTop: 40 },
+  emptyIcon:{ fontSize: 48, marginBottom: 12 },
+  emptyText:{ fontSize: 15, color: COLORS.textMuted, fontWeight: '500' },
+  statNames:{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  statPlayerName: { flex: 1, fontSize: 13, fontWeight: '800', textTransform: 'capitalize' },
+  statLabelCol:   { width: 56 },
+  statRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  barLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
+  barRight:{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  trackLeft: { flex: 1, height: 7, backgroundColor: COLORS.border, borderRadius: 99, overflow: 'hidden', flexDirection: 'row', justifyContent: 'flex-end' },
+  trackRight:{ flex: 1, height: 7, backgroundColor: COLORS.border, borderRadius: 99, overflow: 'hidden' },
+  fillLeft:  { height: '100%', borderRadius: 99 },
+  fillRight: { height: '100%', borderRadius: 99 },
+  statLabel: { width: 56, textAlign: 'center', fontSize: 10, fontWeight: '800', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
+  statNum:   { fontSize: 13, fontWeight: '800', color: COLORS.textMuted, minWidth: 28, textAlign: 'center' },
+  totalRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  totalNum:  { fontSize: 22, fontWeight: '900', flex: 1 },
+  totalLabel:{ fontSize: 11, fontWeight: '800', color: COLORS.textSub, textAlign: 'center', width: 56, textTransform: 'uppercase', letterSpacing: 0.6 },
+  typesRow:  { flexDirection: 'row' },
+  typesCol:  { flex: 1, gap: 6, alignItems: 'center' },
+  sizeRow:   { flexDirection: 'row' },
+  sizeCol:   { flex: 1, alignItems: 'center' },
+  sizeVal:   { fontSize: 22, fontWeight: '900', color: COLORS.text },
+  sizeLbl:   { fontSize: 11, color: COLORS.textMuted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 3 },
 });

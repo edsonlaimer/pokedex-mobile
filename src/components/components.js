@@ -1,196 +1,225 @@
 import React from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, Modal, ScrollView, StatusBar,
+  StyleSheet, Modal, ScrollView, ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { getTypeColor, formatName } from './constants';
+import { COLORS, RADIUS, SHADOW, getTypeColor, hex2rgba } from './constants';
 
 // ─── TypeBadge ────────────────────────────────────────────────────────────────
-export const TypeBadge = React.memo(({ type, light = false }) => {
-  const bg = light ? 'rgba(255,255,255,0.22)' : getTypeColor(type);
-  const color = '#FFFFFF';
+export const TypeBadge = React.memo(({ type, light = false, size = 'md' }) => {
+  const color = getTypeColor(type);
+  const bg    = light ? 'rgba(255,255,255,0.25)' : hex2rgba(color, 0.15);
+  const fg    = light ? '#FFFFFF' : color;
+  const isSmall = size === 'sm';
   return (
-    <View style={[badge.container, { backgroundColor: bg }]}>
-      <Text style={[badge.text, { color }]}>{type}</Text>
+    <View style={[badge.wrap, { backgroundColor: bg, borderColor: light ? 'rgba(255,255,255,0.3)' : hex2rgba(color, 0.3) }]}>
+      <Text style={[badge.text, { color: fg, fontSize: isSmall ? 10 : 12 }]}>{type}</Text>
     </View>
   );
 });
 
 const badge = StyleSheet.create({
-  container: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, alignSelf: 'flex-start' },
-  text: { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
+  wrap: {
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: RADIUS.sm,
+    alignSelf: 'flex-start', borderWidth: 1,
+  },
+  text: { fontWeight: '700', textTransform: 'capitalize', letterSpacing: 0.3 },
 });
 
 // ─── SearchBar ────────────────────────────────────────────────────────────────
 export function SearchBar({ value, onChangeText, placeholder = 'Buscar...' }) {
   return (
-    <View style={search.wrapper}>
-      <Text style={search.icon}>🔍</Text>
+    <View style={sb.wrap}>
+      <Text style={sb.icon}>🔍</Text>
       <TextInput
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor="#9CA3AF"
-        style={search.input}
+        placeholderTextColor={COLORS.textMuted}
+        style={sb.input}
         autoCorrect={false}
         autoCapitalize="none"
+        returnKeyType="search"
       />
       {value.length > 0 && (
-        <TouchableOpacity onPress={() => onChangeText('')} style={search.clearBtn}>
-          <Text style={search.clearIcon}>✕</Text>
+        <TouchableOpacity onPress={() => onChangeText('')} style={sb.clear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <View style={sb.clearCircle}>
+            <Text style={sb.clearText}>✕</Text>
+          </View>
         </TouchableOpacity>
       )}
     </View>
   );
 }
 
-const search = StyleSheet.create({
-  wrapper: { flexDirection: 'row', alignItems: 'center', position: 'relative' },
-  icon: { position: 'absolute', left: 12, zIndex: 1, fontSize: 14 },
+const sb = StyleSheet.create({
+  wrap:        { flexDirection: 'row', alignItems: 'center' },
+  icon:        { position: 'absolute', left: 14, zIndex: 1, fontSize: 15 },
   input: {
-    flex: 1, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB',
-    borderRadius: 14, paddingVertical: 12, paddingLeft: 36, paddingRight: 40,
-    fontSize: 15, color: '#111827',
+    flex: 1, backgroundColor: COLORS.bg, borderWidth: 1.5, borderColor: COLORS.border,
+    borderRadius: RADIUS.md, paddingVertical: 13, paddingLeft: 42, paddingRight: 44,
+    fontSize: 15, color: COLORS.text, fontWeight: '500',
   },
-  clearBtn: { position: 'absolute', right: 12, zIndex: 1, padding: 4 },
-  clearIcon: { fontSize: 12, color: '#9CA3AF' },
-});
-
-// ─── ScreenHeader ─────────────────────────────────────────────────────────────
-export function ScreenHeader({
-  title, subtitle, onBack, backColor = '#3B82F6',
-  bgColor = '#FFFFFF', children,
-}) {
-  return (
-    <View style={[header.container, { backgroundColor: bgColor }]}>
-      {onBack && (
-        <TouchableOpacity onPress={onBack} activeOpacity={0.7} style={header.backBtn}>
-          <Text style={[header.backText, { color: backColor }]}>‹ Voltar</Text>
-        </TouchableOpacity>
-      )}
-      <Text style={[header.title, bgColor !== '#FFFFFF' && { color: '#FFF' }]}>{title}</Text>
-      {subtitle && (
-        <Text style={[header.subtitle, bgColor !== '#FFFFFF' && { color: 'rgba(255,255,255,0.75)' }]}>
-          {subtitle}
-        </Text>
-      )}
-      {children}
-    </View>
-  );
-}
-
-const header = StyleSheet.create({
-  container: {
-    paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16,
-    borderBottomWidth: 1, borderBottomColor: '#E5E7EB',
-  },
-  backBtn: { marginBottom: 8 },
-  backText: { fontSize: 15, fontWeight: '600' },
-  title: { fontSize: 26, fontWeight: '800', color: '#111827' },
-  subtitle: { fontSize: 13, color: '#6B7280', marginTop: 2 },
+  clear:       { position: 'absolute', right: 12, zIndex: 1 },
+  clearCircle: { width: 20, height: 20, borderRadius: 10, backgroundColor: COLORS.textMuted, justifyContent: 'center', alignItems: 'center' },
+  clearText:   { fontSize: 9, color: '#FFF', fontWeight: '800' },
 });
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 export function Card({ children, style }) {
-  return <View style={[card.container, style]}>{children}</View>;
+  return <View style={[card.wrap, style]}>{children}</View>;
 }
 
-export function CardTitle({ children }) {
-  return <Text style={card.title}>{children}</Text>;
+export function CardTitle({ children, style }) {
+  return <Text style={[card.title, style]}>{children}</Text>;
+}
+
+export function SectionDivider() {
+  return <View style={card.divider} />;
 }
 
 const card = StyleSheet.create({
-  container: {
-    backgroundColor: '#FFF', borderRadius: 18, padding: 16, marginBottom: 12,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 }, elevation: 2,
+  wrap: {
+    backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, padding: 18, marginBottom: 12,
+    ...SHADOW.card,
   },
-  title: { fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 14 },
+  title:   { fontSize: 13, fontWeight: '800', color: COLORS.textSub, marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.8 },
+  divider: { height: 1, backgroundColor: COLORS.border, marginVertical: 12 },
 });
 
 // ─── InfoGrid ─────────────────────────────────────────────────────────────────
 export function InfoGrid({ items }) {
+  const filtered = items.filter((i) => i.value != null && i.value !== '');
   return (
-    <View style={grid.container}>
-      {items.map(({ label, value }) =>
-        value != null ? (
-          <View key={label} style={grid.item}>
-            <Text style={grid.label}>{label}</Text>
-            <Text style={grid.value}>{value}</Text>
-          </View>
-        ) : null
-      )}
+    <View style={ig.wrap}>
+      {filtered.map(({ label, value }) => (
+        <View key={label} style={ig.item}>
+          <Text style={ig.label}>{label}</Text>
+          <Text style={ig.value}>{value}</Text>
+        </View>
+      ))}
     </View>
   );
 }
 
-const grid = StyleSheet.create({
-  container: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
-  item: { width: '28%' },
-  label: { fontSize: 11, color: '#9CA3AF', fontWeight: '600', textTransform: 'uppercase', marginBottom: 3 },
-  value: { fontSize: 14, fontWeight: '700', color: '#111827', textTransform: 'capitalize' },
+const ig = StyleSheet.create({
+  wrap:  { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  item:  { minWidth: '28%', flex: 1 },
+  label: { fontSize: 10, color: COLORS.textMuted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 },
+  value: { fontSize: 15, fontWeight: '800', color: COLORS.text, textTransform: 'capitalize' },
 });
 
-// ─── BottomSheet Modal ────────────────────────────────────────────────────────
-export function BottomSheet({ visible, onClose, children }) {
+// ─── BottomSheet ──────────────────────────────────────────────────────────────
+export function BottomSheet({ visible, onClose, children, title }) {
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={sheet.overlay}>
-        <View style={sheet.container}>
-          <TouchableOpacity onPress={onClose} style={sheet.closeBtn}>
-            <Text style={sheet.closeText}>✕</Text>
-          </TouchableOpacity>
-          <ScrollView showsVerticalScrollIndicator={false}>
+      <TouchableOpacity style={bs.overlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} style={bs.sheet}>
+          {/* Handle */}
+          <View style={bs.handle} />
+          {title && (
+            <View style={bs.header}>
+              <Text style={bs.title}>{title}</Text>
+              <TouchableOpacity onPress={onClose} style={bs.closeBtn}>
+                <Text style={bs.closeText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
             {children}
           </ScrollView>
-        </View>
-      </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
     </Modal>
   );
 }
 
-const sheet = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  container: {
-    backgroundColor: '#FFF', borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    padding: 24, maxHeight: '85%',
+const bs = StyleSheet.create({
+  overlay:  { flex: 1, backgroundColor: 'rgba(15,17,23,0.5)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: COLORS.surface, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl,
+    padding: 24, paddingTop: 12, maxHeight: '88%',
   },
-  closeBtn: { alignSelf: 'flex-end', padding: 4, marginBottom: 8 },
-  closeText: { fontSize: 18, color: '#9CA3AF' },
+  handle:   { width: 36, height: 4, borderRadius: 2, backgroundColor: COLORS.border, alignSelf: 'center', marginBottom: 16 },
+  header:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  title:    { fontSize: 18, fontWeight: '800', color: COLORS.text },
+  closeBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: COLORS.bg, justifyContent: 'center', alignItems: 'center' },
+  closeText:{ fontSize: 12, color: COLORS.textSub, fontWeight: '700' },
 });
-
-// ─── LoadingView ──────────────────────────────────────────────────────────────
-export function LoadingView({ text = 'Carregando...' }) {
-  return (
-    <View style={loading.container}>
-      <Text style={loading.text}>{text}</Text>
-    </View>
-  );
-}
-
-const loading = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  text: { marginTop: 10, color: '#6B7280' },
-});
-
-// ─── FooterLoader ─────────────────────────────────────────────────────────────
-export function FooterLoader() {
-  return <View style={{ paddingVertical: 20, alignItems: 'center' }} />;
-}
 
 // ─── EmptyState ───────────────────────────────────────────────────────────────
 export function EmptyState({ icon = '🔍', text = 'Nenhum resultado encontrado.' }) {
   return (
-    <View style={empty.container}>
-      <Text style={empty.icon}>{icon}</Text>
-      <Text style={empty.text}>{text}</Text>
+    <View style={es.wrap}>
+      <Text style={es.icon}>{icon}</Text>
+      <Text style={es.text}>{text}</Text>
     </View>
   );
 }
 
-const empty = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', paddingTop: 60 },
+const es = StyleSheet.create({
+  wrap: { alignItems: 'center', paddingTop: 60 },
   icon: { fontSize: 48, marginBottom: 12 },
-  text: { fontSize: 15, color: '#9CA3AF', textAlign: 'center' },
+  text: { fontSize: 15, color: COLORS.textMuted, textAlign: 'center', fontWeight: '500' },
+});
+
+// ─── BackButton ───────────────────────────────────────────────────────────────
+export function BackButton({ onPress, light = false }) {
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={bb.btn}>
+      <View style={[bb.circle, light ? bb.circleLight : bb.circleDark]}>
+        <Text style={[bb.arrow, { color: light ? '#FFF' : COLORS.text }]}>‹</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+const bb = StyleSheet.create({
+  btn:         { marginBottom: 8 },
+  circle:      { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+  circleDark:  { backgroundColor: COLORS.bg },
+  circleLight: { backgroundColor: 'rgba(255,255,255,0.2)' },
+  arrow:       { fontSize: 22, fontWeight: '700', lineHeight: 26 },
+});
+
+// ─── StatBar ─────────────────────────────────────────────────────────────────
+export function StatBar({ statName, value, label, color }) {
+  const pct = Math.min((value / 255) * 100, 100).toFixed(1);
+  return (
+    <View style={stat.row}>
+      <Text style={stat.label}>{label}</Text>
+      <Text style={stat.value}>{value}</Text>
+      <View style={stat.track}>
+        <View style={[stat.fill, { width: `${pct}%`, backgroundColor: color }]} />
+      </View>
+    </View>
+  );
+}
+
+const stat = StyleSheet.create({
+  row:   { flexDirection: 'row', alignItems: 'center', marginBottom: 11 },
+  label: { width: 56, fontSize: 11, fontWeight: '800', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
+  value: { width: 34, fontSize: 14, fontWeight: '800', color: COLORS.text, textAlign: 'right', marginRight: 12 },
+  track: { flex: 1, height: 7, backgroundColor: COLORS.border, borderRadius: 99, overflow: 'hidden' },
+  fill:  { height: '100%', borderRadius: 99 },
+});
+
+// ─── Pill Button ─────────────────────────────────────────────────────────────
+export function PillButton({ label, icon, color = '#3B82F6', onPress, style }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.82}
+      style={[pb.btn, { backgroundColor: color }, style]}
+    >
+      {icon && <Text style={pb.icon}>{icon}</Text>}
+      <Text style={pb.label}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+const pb = StyleSheet.create({
+  btn:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.lg, paddingVertical: 16, gap: 8 },
+  icon:  { fontSize: 18 },
+  label: { color: '#FFF', fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
 });
